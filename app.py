@@ -13,7 +13,21 @@ ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get('MATCH_DOWNLOADER_DATA') or os.environ.get('SCOUTVAULT_DATA') or ROOT / 'library').resolve()
 DATA.mkdir(parents=True, exist_ok=True)
 EVENTS = Events(DATA)
-TOKEN = secrets.token_hex(24)
+# The native app reads this token from <library>/.session-token; MATCH_DOWNLOADER_TOKEN overrides it.
+TOKEN = os.environ.get('MATCH_DOWNLOADER_TOKEN') or secrets.token_hex(24)
+TOKEN_FILE = DATA / '.session-token'
+API_VERSION = 1
+
+def write_token_file():
+    TOKEN_FILE.unlink(missing_ok=True)
+    fd = os.open(TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w') as f: f.write(TOKEN)
+
+def remove_token_file():
+    # Only remove our own token; another server may have replaced it.
+    try:
+        if TOKEN_FILE.read_text() == TOKEN: TOKEN_FILE.unlink()
+    except OSError: pass
 LOCK = threading.RLock()
 PROCESSES = {}
 BUSY = set()
@@ -200,7 +214,7 @@ class Handler(BaseHTTPRequestHandler):
         assets={'/preview.js':ROOT/'web/preview.js','/vendor/vimeo.js':ROOT/'web/vendor/vimeo.js','/vendor/hls.js':ROOT/'web/vendor/hls.js'}
         if path in assets:
             b=assets[path].read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript');self.send_header('Content-Length',str(len(b)));self.send_header('Cache-Control','no-cache');self.end_headers();self.wfile.write(b);return
-        if path=='/api/health':return self.json({'app':'Match Downloader','status':'ready'})
+        if path=='/api/health':return self.json({'app':'Match Downloader','status':'ready','api':API_VERSION})
         if path=='/api/library':
             with db() as c: rows=[dict(r) for r in c.execute('SELECT * FROM clips ORDER BY created DESC')]
             for r in rows:
@@ -211,7 +225,7 @@ class Handler(BaseHTTPRequestHandler):
         prototype={'/next/app.js':('web/next/app.js','text/javascript'),'/next/app.css':('web/next/app.css','text/css'),'/mac/app.js':('web/mac/app.js','text/javascript'),'/mac/app.css':('web/mac/app.css','text/css')}
         if path in prototype:
             file,kind=prototype[path];b=(ROOT/file).read_bytes();self.send_response(200);self.send_header('Content-Type',kind+'; charset=utf-8');self.send_header('Content-Length',str(len(b)));self.send_header('Cache-Control','no-cache');self.end_headers();self.wfile.write(b);return
-        pages={'/':'web/mac/index.html','/mac':'web/mac/index.html','/mac/':'web/mac/index.html','/next':'web/next/index.html','/next/':'web/next/index.html','/classic':'web/index.html','/classic/':'web/index.html'}
+        pages={'/embed/preview':'web/embed/preview.html','/':'web/mac/index.html','/mac':'web/mac/index.html','/mac/':'web/mac/index.html','/next':'web/next/index.html','/next/':'web/next/index.html','/classic':'web/index.html','/classic/':'web/index.html'}
         if path in pages:
             page=pages[path]
             b=(ROOT/page).read_bytes().replace(b'__TOKEN__',TOKEN.encode())
@@ -364,6 +378,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     p=argparse.ArgumentParser(); p.add_argument('--port',type=int,default=8766); p.add_argument('--no-browser',action='store_true'); args=p.parse_args()
     server=ThreadingHTTPServer(('127.0.0.1',args.port),Handler)
+    write_token_file()
     threading.Thread(target=queue_loop,daemon=True).start()
     url=f'http://127.0.0.1:{server.server_port}'
     print('Match Downloader running at '+url+'\nLibrary: '+str(DATA),flush=True)
@@ -374,3 +389,4 @@ if __name__=='__main__':
     except KeyboardInterrupt:
         with LOCK:
             for proc in PROCESSES.values(): terminate(proc)
+    finally: remove_token_file()
