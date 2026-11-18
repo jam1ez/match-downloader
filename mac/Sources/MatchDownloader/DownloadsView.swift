@@ -16,6 +16,7 @@ struct DownloadsView: View {
     @State private var confirmation: String?
     @State private var actionIDs: Set<String> = []
     @State private var review: Clip?
+    @State private var adjusting: Clip?
     @Environment(\.openWindow) private var openWindow
 
     private var selected: [Clip] { store.clips.filter { selection.contains($0.id) } }
@@ -69,7 +70,7 @@ struct DownloadsView: View {
             Button(inspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right") { inspector.toggle() }
         }
         .inspector(isPresented: $inspector) {
-            if let clip = selected.first { DownloadInspector(clip: clip, store: store, review: { review = clip }, play: { play([clip.id]) }) }
+            if let clip = selected.first { DownloadInspector(clip: clip, store: store, review: { review = clip }, adjust: { adjusting = clip }, play: { play([clip.id]) }) }
             else { ContentUnavailableView("Select a Download", systemImage: "arrow.down.circle", description: Text("Choose a download to see details and notes.")) }
         }
         .confirmationDialog("\(confirmation ?? "") \(actionIDs.count) Download(s)?", isPresented: Binding(get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }), titleVisibility: .visible) {
@@ -88,6 +89,7 @@ struct DownloadsView: View {
             Button("Cancel", role: .cancel) { confirmation = nil }
         } message: { Text(confirmation == "Delete" ? "Saved files and notes will be removed permanently." : "This applies to the selected downloads.") }
         .sheet(item: $review) { clip in ReviewSheet(clip: clip, store: store) }
+        .sheet(item: $adjusting) { clip in AdjustClipSheet(clip: clip, store: store) }
         .task {
             try? await Task.sleep(for: .milliseconds(150))
             sort = SortPreference.decode(savedSort, choices: sortChoices, fallback: sort)
@@ -113,6 +115,7 @@ Picker("Show Downloads", selection: $scope) {
         let items = store.clips.filter { ids.contains($0.id) }
         Button("Play") { play(ids) }.disabled(!items.contains { $0.status == "ready" })
         Button("Save MP4 As…") { if let clip = items.first { save(clip) } }.disabled(items.count != 1 || items.first?.status != "ready")
+        Button("Adjust Length…") { adjusting = items.first }.disabled(items.count != 1 || items.first?.status != "ready")
         Button("Check Start and End…") { review = items.first }.disabled(items.count != 1 || items.first?.status != "needs_review")
         Divider()
         Button("Retry…") { ask("Retry", ids) }.disabled(items.isEmpty || !items.allSatisfy { $0.state?.canRetry == true })
@@ -146,6 +149,7 @@ struct DownloadInspector: View {
     let clip: Clip
     @Bindable var store: LibraryStore
     let review: () -> Void
+    let adjust: () -> Void
     let play: () -> Void
     @State private var notes = ""
     var body: some View {
@@ -157,7 +161,7 @@ struct DownloadInspector: View {
                 if clip.status == "failed" { Text(Labels.failure(clip.detail)).foregroundStyle(.red).textSelection(.enabled) }
                 else if let detail = clip.detail, !detail.isEmpty { Text(detail).foregroundStyle(.secondary).textSelection(.enabled) }
                 HStack {
-                    if clip.status == "ready" { Button("Play", action: play).inspectorButton() }
+                    if clip.status == "ready" { Button("Play", action: play).inspectorButton(); Button("Adjust Length…", action: adjust).inspectorButton() }
                     if clip.status == "needs_review" { Button("Check Start and End…", action: review).inspectorButton() }
                     if let url = URL(string: clip.url) { Link("Open Recording", destination: url) }
                 }

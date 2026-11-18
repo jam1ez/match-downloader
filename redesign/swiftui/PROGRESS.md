@@ -193,3 +193,8 @@ Before long polish/review: inspect source with apple-design references; improve 
 - Not verified by looking at the sheet.
 
 - Later the same day: the two sliders became one two-thumb range slider (`ClipRangeSlider`); left thumb is the clip start, right thumb the end, 5 s steps, at least 5 s apart, arrow keys and VoiceOver adjust the focused thumb. Engine unchanged. Not verified by dragging it.
+
+## Adjust saved clips (2026-11-18)
+- Engine: `POST /api/clips/<id>/adjust {start,end}` (source seconds). Inside the old range the saved file is trimmed locally; beyond it the wider range is downloaded again. The old file stays until the new one is complete; failure, cancel or an interrupted run restores the old range. Tests added.
+- App: "Adjust Length…" (right-click and inspector) opens a sheet with the two-thumb slider: 0:00 is the current start, drag outward to add up to two minutes each side, inward to cut.
+- Verified live on a temp library: 60 s download, trim to 40 s (4 s), extend to 90 s (90 s). Not verified by dragging the slider.

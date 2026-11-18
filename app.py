@@ -48,6 +48,11 @@ with db() as c:
         if col not in columns:c.execute('ALTER TABLE clips ADD COLUMN '+col+' TEXT')
     for col,kind in [('clip_mode',"TEXT DEFAULT 'fixed'"),('source_start','REAL'),('analysis_json','TEXT'),('detect_settings','TEXT')]:
         if col not in columns:c.execute('ALTER TABLE clips ADD COLUMN '+col+' '+kind)
+    # A trim or extension that was interrupted leaves the saved video as it was.
+    for r in c.execute("SELECT id,detect_settings FROM clips WHERE clip_mode='adjust' AND status IN ('queued','downloading','processing')").fetchall():
+        try:previous=json.loads(r['detect_settings'] or '{}').get('adjust') or {}
+        except ValueError:previous={}
+        if previous:c.execute("UPDATE clips SET start=?,end=?,clip_mode=?,detect_settings=?,status='ready',detail='Adjustment interrupted. The saved video is unchanged.' WHERE id=?",(previous.get('start'),previous.get('end'),previous.get('mode'),previous.get('detect'),r['id']))
     c.execute("UPDATE clips SET status='failed',detail='App stopped. Retry to continue.' WHERE status IN ('queued','downloading','analyzing','processing')")
 
 def update(id, **fields):
@@ -196,6 +201,43 @@ def download_with_retries(id,folder,args,check):
             update(id,detail=f'Download interrupted. Retrying automatically ({attempt+2}/{len(RETRY_DELAYS)+1})…')
             for _ in range(RETRY_DELAYS[attempt]*2):time.sleep(.5);check()
 
+def section_args(folder,url,start,end):
+    """yt-dlp arguments for downloading one section of a recording to folder/source.*"""
+    return [sys.executable,'-m','yt_dlp','--no-playlist','--no-warnings','--newline','--retries','3','--socket-timeout','30','--js-runtimes','node','-f','bv*[height<=720][vcodec^=avc1][fps<=30]+ba[ext=m4a]/bv*[height<=720][vcodec^=avc1]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b','--merge-output-format','mp4','--download-sections',f"*{start}-{end}",'--force-keyframes-at-cuts','-o',str(folder/'source.%(ext)s'),'--',boxcast(url)]
+
+def process_adjust(id,row):
+    """Trim or extend a saved clip. Inside the old range the saved file is cut; beyond it, the wider range is
+    downloaded again. The old file stays until the new one is complete, and a failure puts everything back."""
+    folder=DATA/id;settings=json.loads(row.get('detect_settings') or '{}');old=settings.get('adjust') or {}
+    new_start,new_end=row['start'],row['end']
+    def check():
+        with LOCK,db() as c: current=c.execute('SELECT status FROM clips WHERE id=?',(id,)).fetchone()
+        if not current or current['status']=='cancelled':raise RuntimeError('Cancelled')
+    def restore(note):
+        update(id,start=old.get('start',new_start),end=old.get('end',new_end),clip_mode=old.get('mode'),detect_settings=old.get('detect'),status='ready',detail=note)
+    try:
+        saved=folder/'clip.mp4'
+        if not saved.exists():raise RuntimeError('The saved video is missing, so it cannot be adjusted.')
+        out=folder/'clip.tmp.mp4'
+        if new_start>=old['start'] and new_end<=old['end']:
+            update(id,status='processing',detail='Trimming the saved video…')
+            encode_mp4(id,saved,out,new_start-old['start'],new_end-new_start)
+        else:
+            update(id,status='downloading',detail='Downloading the longer clip…')
+            download_with_retries(id,folder,section_args(folder,row['url'],new_start,new_end),check)
+            source=downloaded_source(folder);check()
+            update(id,status='processing',detail='Preparing a laptop-compatible MP4…')
+            encode_mp4(id,source,out,None,new_end-new_start)
+        with LOCK:
+            check();out.replace(saved)
+            update(id,clip_mode=old.get('mode'),detect_settings=old.get('detect'),status='ready',detail='Adjusted · saved offline')
+        for file in folder.glob('source.*'):file.unlink(missing_ok=True)
+    except Exception as e:
+        (folder/'clip.tmp.mp4').unlink(missing_ok=True)
+        for file in folder.glob('source.*'):file.unlink(missing_ok=True)
+        cancelled=str(e)=='Cancelled'
+        restore('Adjustment cancelled. The saved video is unchanged.' if cancelled else 'Adjustment failed, so the saved video is unchanged: '+str(e)[-300:])
+
 def process_clip(id):
     folder=DATA/id; folder.mkdir(exist_ok=True)
     try:
@@ -206,8 +248,9 @@ def process_clip(id):
             if not current or current['status']=='cancelled':raise RuntimeError('Cancelled')
         with LOCK:
             if row['status']!='queued':return
-            update(id,status='downloading',detail='Preparing the recording…')
+            if row.get('clip_mode')!='adjust':update(id,status='downloading',detail='Preparing the recording…')
         mode=row.get('clip_mode') or 'fixed'
+        if mode=='adjust':return process_adjust(id,row)
         source_start=row.get('source_start') or 0
         if mode=='reviewed':
             source=folder/'review.mp4'
@@ -221,7 +264,7 @@ def process_clip(id):
             update(id,source_start=source_start,status='downloading',detail='Downloading a wider window for actual match detection…' if dynamic else 'Downloading selected interval…')
             # A failed earlier attempt can leave per-format fragments
             # (source.f399.mp4 has no audio) or an interval from other settings.
-            args=[sys.executable,'-m','yt_dlp','--no-playlist','--no-warnings','--newline','--retries','3','--socket-timeout','30','--js-runtimes','node','-f','bv*[height<=720][vcodec^=avc1][fps<=30]+ba[ext=m4a]/bv*[height<=720][vcodec^=avc1]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b','--merge-output-format','mp4','--download-sections',f"*{source_start}-{source_end}",'--force-keyframes-at-cuts','-o',str(folder/'source.%(ext)s'),'--',boxcast(row['url'])]
+            args=section_args(folder,row['url'],source_start,source_end)
             download_with_retries(id,folder,args,check)
             source=downloaded_source(folder);check()
             relative_start=0;relative_end=row['end']-row['start']
@@ -466,7 +509,7 @@ class Handler(BaseHTTPRequestHandler):
                 id=uuid.uuid4().hex
                 with LOCK,db() as c: c.execute('INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES(?,?,?,?,?,?,?,?,?)',(id,title,url,start,end,str(body.get('notes',''))[:10000],'queued','Waiting in queue',time.time()))
                 return self.json({'id':id},201)
-            m=re.fullmatch(r'/api/clips/([a-f0-9]{32})/(retry|cancel|delete|notes|bounds)',path)
+            m=re.fullmatch(r'/api/clips/([a-f0-9]{32})/(retry|cancel|delete|notes|bounds|adjust)',path)
             if not m: return self.json({'error':'Not found'},404)
             id,action=m.groups()
             with LOCK:
@@ -478,6 +521,16 @@ class Handler(BaseHTTPRequestHandler):
                     start=seconds(body.get('start'));end=seconds(body.get('end'))
                     if end<=start or end>analysis.get('source_duration',0)+.1:raise ValueError('Choose start and end positions within this review window')
                     update(id,start=row['source_start']+start,end=row['source_start']+end,clip_mode='reviewed',status='queued',detail='Trimming your reviewed match bounds…')
+                elif action=='adjust':
+                    if id in BUSY or row['status']!='ready':raise ValueError('Only a saved video can be trimmed or extended')
+                    start=seconds(body.get('start'));end=seconds(body.get('end'))
+                    if end-start<5:raise ValueError('Keep at least 5 seconds of video')
+                    if end-start>3600:raise ValueError('A clip can be up to one hour')
+                    if start<row['start']-600 or end>row['end']+600:raise ValueError('Extend by up to 10 minutes on either side')
+                    if abs(start-row['start'])<.5 and abs(end-row['end'])<.5:raise ValueError('Nothing to change')
+                    if (start<row['start']-.5 or end>row['end']+.5) and not row['url']:raise ValueError('This video has no source to download more from')
+                    old={'start':row['start'],'end':row['end'],'mode':row['clip_mode'],'detect':row['detect_settings']}
+                    update(id,start=start,end=end,clip_mode='adjust',detect_settings=json.dumps({'adjust':old}),status='queued',detail='Waiting in queue')
                 elif action=='notes': update(id,notes=str(body.get('notes',''))[:10000])
                 elif action=='retry':
                     if id in BUSY: raise ValueError('Worker is stopping. Retry in a moment.')
