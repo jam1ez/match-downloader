@@ -14,19 +14,26 @@ enum ProgressText {
     }
 }
 
-/// A slim determinate bar. The fill is a scaled shape, so it never affects layout and nothing else
-/// animates with it; it eases between engine updates so it moves at an even pace.
+/// The filled part of a bar, drawn inside the same rectangle as its track so it can never sit anywhere else.
+struct BarFill: Shape {
+    var fraction: Double
+    func path(in rect: CGRect) -> Path {
+        let width = max(rect.height, rect.width * min(max(fraction, 0), 1))
+        return Path(roundedRect: CGRect(x: rect.minX, y: rect.minY, width: width, height: rect.height), cornerRadius: rect.height / 2)
+    }
+}
+
+/// A slim determinate bar. No animation of its own: the fill steps forward as the engine reports progress, and the
+/// track and fill share one frame, so nothing about it moves up, down or sideways.
 struct SlimBar: View {
     let fraction: Double
     var height: CGFloat
     var body: some View {
-        Capsule().fill(Color.primary.opacity(0.14))
-            .frame(height: height)
-            .overlay(alignment: .leading) {
-                Capsule().fill(Color.blue)
-                    .scaleEffect(x: min(max(fraction, 0.01), 1), anchor: .leading)
-                    .animation(.linear(duration: 2.5), value: fraction)
-            }
+        ZStack(alignment: .leading) {
+            Capsule().fill(Color.primary.opacity(0.14))
+            BarFill(fraction: fraction).fill(Color.blue)
+        }
+        .frame(height: height)
     }
 }
 
