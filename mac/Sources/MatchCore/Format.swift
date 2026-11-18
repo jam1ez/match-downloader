@@ -50,8 +50,12 @@ public enum Labels {
     }
     public static func failure(_ detail: String?) -> String {
         let lines = (detail ?? "").components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        return (lines.last { $0.hasPrefix("ERROR:") } ?? lines.last ?? "Download failed")
-            .replacingOccurrences(of: "^ERROR:\\s*(\\[[^\\]]+\\]\\s*)?", with: "", options: .regularExpression)
+        let raw = lines.last { $0.hasPrefix("ERROR:") } ?? lines.last ?? "Download failed"
+        // Vimeo (and some other hosts) only serve certain videos to signed-in viewers; say so plainly.
+        if raw.localizedCaseInsensitiveContains("only works when logged-in") || raw.contains("HTTP Error 401") {
+            return "The video's host wants a login for this recording, so it can't be downloaded here. You can still watch it in your browser (Open Recording), or choose another livestream for the event under Livestream in the event panel."
+        }
+        return raw.replacingOccurrences(of: "^ERROR:\\s*(\\[[^\\]]+\\]\\s*)?", with: "", options: .regularExpression)
     }
     public static func source(_ match: Match) -> String {
         if let label = match.streamLabel, !label.isEmpty { return label }

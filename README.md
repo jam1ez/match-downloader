@@ -23,6 +23,7 @@ Other things you can do:
 - **Clip from Link** (File menu) saves a clip from any recording link.
 - **Recordings** (inspector) lets you add your own YouTube, Vimeo, BoxCast or MP4 link if the app didn't find one, or if an event has several.
 - **Archive or remove an event** (right-click or swipe it in the sidebar). Archive moves it to an Archived list and keeps everything. Remove deletes its saved schedule and recordings from this Mac; downloaded matches stay.
+- **Change the livestream.** With no match selected, the event panel lists the video found for each day. **Change…** replaces it with a recording you choose; **Use Automatic** goes back.
 - **Set Video Position…** (right-click a match) fixes a match that is out of sync.
 
 ## Good to know

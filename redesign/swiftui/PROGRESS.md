@@ -198,3 +198,8 @@ Before long polish/review: inspect source with apple-design references; improve 
 - Engine: `POST /api/clips/<id>/adjust {start,end}` (source seconds). Inside the old range the saved file is trimmed locally; beyond it the wider range is downloaded again. The old file stays until the new one is complete; failure, cancel or an interrupted run restores the old range. Tests added.
 - App: "Adjust Length…" (right-click and inspector) opens a sheet with the two-thumb slider: 0:00 is the current start, drag outward to add up to two minutes each side, inward to cut.
 - Verified live on a temp library: 60 s download, trim to 40 s (4 s), extend to 90 s (90 s). Not verified by dragging the slider.
+
+## Livestream section and login-required wording (2026-11-18)
+- Event panel (no match selected): a "Livestream" section lists the video found for each day with Change… (opens the recording editor for that day, all divisions), Use Automatic (removes your override) and Open. Not verified by clicking.
+- UND Signature (RE-V5RC-26-4244): its built-in links are Vimeo event videos 1193358615 and 1216546057 under event 5938928, the same event as the official VEX Events webcast link, so the links are right. Vimeo serves the player only to signed-in viewers (player.vimeo.com 401; yt-dlp "web client only works when logged-in"), so in-app preview and download cannot work without credentials. Not bypassed.
+- Engine treats that error as permanent (no wasted retries); failures now say a login is needed and point to Livestream.
