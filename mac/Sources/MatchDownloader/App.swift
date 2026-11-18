@@ -4,6 +4,23 @@ import MatchCore
 @MainActor
 final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     var backend: BackendProcess?
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let backend else { return .terminateNow }
+        // Downloads keep going after quit: ask the engine to exit once it is idle. If it can't be asked, stop it.
+        // Runs off the main actor so quitting works however it was triggered.
+        let client = backend.configuration.client
+        Task.detached {
+            let keepRunning = (try? await client.quitWhenIdle(true))?.scheduled == true
+            // AppKit waits for this reply in its modal-panel run-loop mode, which the main dispatch queue doesn't serve.
+            RunLoop.main.perform(inModes: [.default, .modalPanel, .eventTracking]) {
+                MainActor.assumeIsolated {
+                    if keepRunning { backend.releaseEngine() } else { backend.stop() }
+                    sender.reply(toApplicationShouldTerminate: true)
+                }
+            }
+        }
+        return .terminateLater
+    }
     func applicationWillTerminate(_ notification: Notification) { backend?.stop() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }

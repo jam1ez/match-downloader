@@ -58,6 +58,15 @@ public struct APIClient: Sendable {
         baseURL.appendingPathComponent(review ? "review" : "video").appendingPathComponent(clipID)
     }
 
+    // MARK: Quitting
+
+    public struct QuitState: Decodable, Sendable, Equatable { public var scheduled: Bool; public var active: Int }
+    /// Asks an engine the Mac app started to exit once its downloads finish (or to stay, with `false`).
+    /// An engine started some other way answers `scheduled: false` and keeps running.
+    public func quitWhenIdle(_ enabled: Bool) async throws -> QuitState {
+        try await post("api/quit-when-idle", ["enabled": enabled], timeout: 3)
+    }
+
     // MARK: Events
 
     public func catalogue(refresh: Bool = false) async throws -> Catalogue {
@@ -131,14 +140,14 @@ public struct APIClient: Sendable {
         return try await send(request)
     }
 
-    private func post<T: Decodable, B: Encodable>(_ path: String, _ body: B) async throws -> T {
+    private func post<T: Decodable, B: Encodable>(_ path: String, _ body: B, timeout: TimeInterval = 120) async throws -> T {
         let data = try JSONEncoder().encode(body)
         var forceRefresh = false
         while true {
             var request = URLRequest(url: baseURL.appendingPathComponent(path), cachePolicy: .reloadIgnoringLocalCacheData)
             request.httpMethod = "POST"
             request.httpBody = data
-            request.timeoutInterval = 120
+            request.timeoutInterval = timeout
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue(try await tokenProvider(forceRefresh), forHTTPHeaderField: "X-Scout-Token")
             do { return try await send(request) }

@@ -55,6 +55,8 @@ final class BackendProcess {
             guard SessionToken.read(dataDirectory: configuration.data) != nil else {
                 throw APIError.badResponse("Quit the old copy and reopen Match Downloader to create a session token.")
             }
+            // An engine left finishing downloads after the last quit should stay for this session.
+            _ = try? await configuration.client.quitWhenIdle(false)
             return
         }
         guard !FileManager.default.fileExists(atPath: SessionToken.fileURL(dataDirectory: configuration.data).path) else {
@@ -70,6 +72,7 @@ final class BackendProcess {
         p.currentDirectoryURL = configuration.root
         var env = ProcessInfo.processInfo.environment
         env["MATCH_DOWNLOADER_DATA"] = configuration.data.path
+        env["MATCH_DOWNLOADER_MANAGED"] = "1"
         env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + (env["PATH"] ?? "/usr/bin:/bin")
         p.environment = env; p.standardOutput = log; p.standardError = log
         try p.run(); process = p
@@ -94,6 +97,11 @@ final class BackendProcess {
         guard health.app == "Match Downloader", health.api == 1 else {
             throw APIError.badResponse("Another or older app is using this port. Quit the old copy and reopen Match Downloader.")
         }
+    }
+    /// Quit with downloads still running: leave the engine going. It exits by itself when they finish.
+    func releaseEngine() {
+        process = nil
+        try? log?.close(); log = nil
     }
     func stop() {
         if let p = process, p.isRunning {

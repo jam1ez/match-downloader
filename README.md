@@ -6,7 +6,7 @@ A Mac app for saving VEX match videos to watch offline. Pick an event, pick the 
 
 1. Double-click **Match Downloader.app** (keep it next to `app.py` and `.venv`).
 2. First time on a new Mac: install Python 3.10+ and FFmpeg, then run `Start.command` once to set up the Python environment.
-3. Quit with Command-Q. Closing the window leaves the app running.
+3. Quit with Command-Q. Closing the window leaves the app running. Downloads in progress keep going after you quit, and the engine closes itself when they finish.
 
 Needs macOS 26. Logs are in `library/desktop.log`. On Windows run `Start.bat`; on Linux run `python3 -m venv .venv`, `.venv/bin/pip install -r requirements.txt`, then `.venv/bin/python app.py` and open http://127.0.0.1:8766.
 

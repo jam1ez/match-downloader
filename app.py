@@ -196,6 +196,20 @@ def worker(id):
     finally:
         with LOCK: BUSY.discard(id)
 
+ACTIVE_STATUSES=('queued','downloading','analyzing','processing')
+QUIT_WHEN_IDLE=threading.Event()
+MANAGED=os.environ.get('MATCH_DOWNLOADER_MANAGED')=='1'  # started by the Mac app
+
+def active_jobs():
+    with db() as c: return c.execute("SELECT COUNT(*) FROM clips WHERE status IN (%s)"%','.join('?'*len(ACTIVE_STATUSES)),ACTIVE_STATUSES).fetchone()[0]
+
+def idle_exit_watch(server):
+    """After the Mac app quits, keep downloading, then exit once nothing is left to do."""
+    while True:
+        time.sleep(1)
+        if QUIT_WHEN_IDLE.is_set() and not active_jobs():
+            server.shutdown(); return
+
 def queue_loop():
     while True:
         with db() as c: row=c.execute("SELECT id FROM clips WHERE status='queued' ORDER BY created LIMIT 1").fetchone()
@@ -266,6 +280,11 @@ class Handler(BaseHTTPRequestHandler):
             except (UnicodeDecodeError,json.JSONDecodeError):raise ValueError('Send a JSON object') from None
             if not isinstance(body,dict):raise ValueError('Send a JSON object')
             path=urlparse(self.path).path
+            if path=='/api/quit-when-idle':
+                if not MANAGED: return self.json({'scheduled':False,'active':active_jobs()})
+                if body.get('enabled') is True: QUIT_WHEN_IDLE.set()
+                else: QUIT_WHEN_IDLE.clear()
+                return self.json({'scheduled':QUIT_WHEN_IDLE.is_set(),'active':active_jobs()})
             if path=='/api/preview/source':
                 from yt_dlp import YoutubeDL
                 from yt_dlp.utils import DownloadError
@@ -380,6 +399,7 @@ if __name__=='__main__':
     server=ThreadingHTTPServer(('127.0.0.1',args.port),Handler)
     write_token_file()
     threading.Thread(target=queue_loop,daemon=True).start()
+    threading.Thread(target=idle_exit_watch,args=(server,),daemon=True).start()
     url=f'http://127.0.0.1:{server.server_port}'
     print('Match Downloader running at '+url+'\nLibrary: '+str(DATA),flush=True)
     if not args.no_browser: webbrowser.open(url)

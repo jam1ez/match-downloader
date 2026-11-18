@@ -58,6 +58,33 @@ class Tests(unittest.TestCase):
             finally:
                 if proc.poll() is None:proc.kill()
                 proc.stdout.close()
+    def test_quit_when_idle_ignored_for_unmanaged_engine(self):
+        r=self.post('/api/quit-when-idle',{'enabled':True})
+        self.assertFalse(r['scheduled']);self.assertFalse(app.QUIT_WHEN_IDLE.is_set())
+    def test_managed_engine_finishes_downloads_then_exits(self):
+        import sqlite3, time
+        from urllib.request import urlopen as uo
+        with tempfile.TemporaryDirectory() as tmp:
+            env=dict(os.environ,MATCH_DOWNLOADER_DATA=tmp,MATCH_DOWNLOADER_MANAGED='1');env.pop('MATCH_DOWNLOADER_TOKEN',None)
+            proc=subprocess.Popen([sys.executable,str(Path(app.__file__)),'--port','0','--no-browser'],env=env,stdout=subprocess.PIPE,text=True)
+            try:
+                port=int(proc.stdout.readline().split('running at http://127.0.0.1:')[1].split()[0])
+                token=(Path(tmp)/'.session-token').read_text()
+                def call(enabled):
+                    req=Request(f'http://127.0.0.1:{port}/api/quit-when-idle',data=json.dumps({'enabled':enabled}).encode(),headers={'X-Scout-Token':token,'Content-Type':'application/json'})
+                    with uo(req) as r:return json.load(r)
+                db=sqlite3.connect(Path(tmp)/'library.sqlite')
+                db.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES('a','t','https://example.com/a',0,5,'','downloading','',0)");db.commit()
+                self.assertEqual(call(True),{'scheduled':True,'active':1})
+                time.sleep(2.5);self.assertIsNone(proc.poll(),'must keep running while a download is active')
+                self.assertFalse(call(False)['scheduled'])
+                self.assertTrue(call(True)['scheduled'])
+                db.execute("UPDATE clips SET status='ready' WHERE id='a'");db.commit()
+                self.assertEqual(proc.wait(timeout=10),0)
+                self.assertFalse((Path(tmp)/'.session-token').exists())
+            finally:
+                if proc.poll() is None: proc.terminate()
+                proc.stdout.close(); proc.wait()
     def test_token_env_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             env=dict(os.environ,MATCH_DOWNLOADER_DATA=tmp,MATCH_DOWNLOADER_TOKEN='fixed-test-token')
