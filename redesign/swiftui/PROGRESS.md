@@ -157,3 +157,11 @@ Before long polish/review: inspect source with apple-design references; improve 
 - Engine: `POST /api/events/archive` and `/api/events/remove`; archived SKUs live in `library/events/archived.json`; the catalogue response gains `archived`. Remove deletes only the saved schedule and recordings, never clips.
 - App: sidebar context menu and swipe actions on saved events (Archive, Unarchive, Remove from This Mac with a confirmation); an Archived section appears when needed.
 - Verified: engine test, Swift decode test, release build. Not verified by clicking through the UI.
+
+## Engine version check and speed-ups (2026-11-18)
+- Engine API is now 2; the app refuses an older engine still running in the background (that is what caused a "not found" error on Archive) and tells the user how to stop it. A 404 now explains itself.
+- Encodes use the Mac hardware encoder (h264_videotoolbox) with libx264 fallback; YouTube downloads prefer H.264/AAC at 30 fps or less, so the review window rarely needs re-encoding.
+- Measured on a real 2-minute YouTube clip, temp library, port 8799: about 119 s total, of which about 99 s was the section download (1.2x real time) and 8 s was the hardware encode. The download is now the bottleneck.
+
+## Collapsible sidebar sections (2026-11-18)
+- Archived (collapsed by default) and Event Catalogue (open by default) can be collapsed; the choice is remembered, and both open while searching. Not verified by clicking.

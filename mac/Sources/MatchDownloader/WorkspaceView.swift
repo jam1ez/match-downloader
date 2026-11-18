@@ -9,6 +9,8 @@ struct WorkspaceView: View {
     @State private var sidebarSearch = ""
     @State private var addEvents = false
     @State private var removing: CatalogueEvent?
+    @AppStorage("sidebar.archivedExpanded") private var archivedExpanded = false
+    @AppStorage("sidebar.catalogueExpanded") private var catalogueExpanded = true
     @State private var visibility = NavigationSplitViewVisibility.automatic
     var body: some View {
         NavigationSplitView(columnVisibility: $visibility) {
@@ -19,9 +21,9 @@ struct WorkspaceView: View {
                 }
                 Section("On This Mac") { ForEach(filtered.filter { $0.saved && !$0.isArchived }) { item in savedRow(item) } }
                 if filtered.contains(where: \.isArchived) {
-                    Section("Archived") { ForEach(filtered.filter(\.isArchived)) { item in savedRow(item) } }
+                    Section("Archived", isExpanded: expansion($archivedExpanded)) { ForEach(filtered.filter(\.isArchived)) { item in savedRow(item) } }
                 }
-                Section("Event Catalogue") { ForEach(filtered.filter { !$0.saved }) { item in Label(item.name, systemImage: "calendar").tag(item.sku) } }
+                Section("Event Catalogue", isExpanded: expansion($catalogueExpanded)) { ForEach(filtered.filter { !$0.saved }) { item in Label(item.name, systemImage: "calendar").tag(item.sku) } }
             }.searchable(text: $sidebarSearch, placement: .sidebar, prompt: "Filter Events")
             .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 360)
             .toolbar {
@@ -56,6 +58,10 @@ struct WorkspaceView: View {
         .safeAreaInset(edge: .bottom) {
             if let error = events.error { HStack { Text(error).textSelection(.enabled); Spacer(); Button("Dismiss") { events.error = nil } }.padding().background(.bar) }
         }
+    }
+    /// Collapsible sections stay open while searching so matches are never hidden.
+    private func expansion(_ stored: Binding<Bool>) -> Binding<Bool> {
+        Binding(get: { stored.wrappedValue || !sidebarSearch.isEmpty }, set: { stored.wrappedValue = $0 })
     }
     /// A saved event: archive or remove it from this Mac with a swipe or right-click.
     private func savedRow(_ item: CatalogueEvent) -> some View {
