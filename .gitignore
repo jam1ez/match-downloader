@@ -1,0 +1,19 @@
+# Your library: downloaded videos, schedules, notes and logs stay on this Mac.
+/library/
+
+# Python environment and caches
+/.venv/
+__pycache__/
+*.pyc
+
+# Build output: rebuild the Mac app with tools/build-mac-app.sh
+/Match Downloader.app/Contents/MacOS/
+
+# Locally installed agent skills (third-party)
+/.claude/skills/
+
+# Output of an external metadata-cleaning tool, not part of the app
+Watermarks Cleaned/
+
+# macOS
+.DS_Store

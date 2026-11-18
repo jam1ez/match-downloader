@@ -1,0 +1,164 @@
+{
+  "2025": {
+    "V5RC HS": {
+      "channelId": "jmhkmkbdwsh3fg4pfoqn",
+      "sku": "RE-V5RC-24-8909",
+      "eventStart": "2025-05-06",
+      "eventEnd": "2025-05-08",
+      "divisions": [
+        "Arts",
+        "Design",
+        "Engineering",
+        "Innovate",
+        "Math",
+        "Opportunity",
+        "Research",
+        "Science",
+        "Spirit",
+        "Technology"
+      ],
+      "numDays": 3,
+      "broadcastOverrides": {}
+    },
+    "V5RC MS": {
+      "channelId": "rguwbt3mtvp4gseosarn",
+      "sku": "RE-V5RC-24-8910",
+      "eventStart": "2025-05-09",
+      "eventEnd": "2025-05-11",
+      "divisions": [
+        "Design",
+        "Engineering",
+        "Innovate",
+        "Opportunity",
+        "Research",
+        "Spirit"
+      ],
+      "numDays": 3,
+      "broadcastOverrides": {}
+    },
+    "VURC": {
+      "channelId": "yignzh2p52kbstxrrsl8",
+      "sku": null,
+      "eventStart": "2025-05-09",
+      "eventEnd": "2025-05-11",
+      "divisions": [
+        "Math",
+        "Technology"
+      ],
+      "numDays": 3,
+      "broadcastOverrides": {}
+    },
+    "VIQRC ES": {
+      "channelId": "forwjofkekkjndq5gdps",
+      "sku": null,
+      "eventStart": "2025-05-12",
+      "eventEnd": "2025-05-14",
+      "divisions": [
+        "Arts",
+        "Engineering",
+        "Math",
+        "Science",
+        "Technology"
+      ],
+      "numDays": 3,
+      "broadcastOverrides": {}
+    },
+    "VIQRC MS": {
+      "channelId": "sooczxjv6zfijyjnw3yn",
+      "sku": null,
+      "eventStart": "2025-05-12",
+      "eventEnd": "2025-05-14",
+      "divisions": [
+        "Design",
+        "Innovate",
+        "Opportunity",
+        "Research",
+        "Spirit"
+      ],
+      "numDays": 3,
+      "broadcastOverrides": {}
+    }
+  },
+  "2026": {
+    "V5RC HS": {
+      "channelId": "jmhkmkbdwsh3fg4pfoqn",
+      "sku": null,
+      "eventStart": "2026-04-21",
+      "eventEnd": "2026-04-24",
+      "divisions": [
+        "Arts",
+        "Design",
+        "Engineering",
+        "Innovate",
+        "Math",
+        "Opportunity",
+        "Research",
+        "Science",
+        "Spirit",
+        "Technology"
+      ],
+      "numDays": 4,
+      "broadcastOverrides": {}
+    },
+    "V5RC MS": {
+      "channelId": "rguwbt3mtvp4gseosarn",
+      "sku": null,
+      "eventStart": "2026-04-25",
+      "eventEnd": "2026-04-27",
+      "divisions": [
+        "Arts",
+        "Engineering",
+        "Innovate",
+        "Math",
+        "Science",
+        "Spirit",
+        "Technology"
+      ],
+      "numDays": 3,
+      "broadcastOverrides": {}
+    },
+    "VURC": {
+      "channelId": "yignzh2p52kbstxrrsl8",
+      "sku": null,
+      "eventStart": "2026-04-25",
+      "eventEnd": "2026-04-27",
+      "divisions": [
+        "Design",
+        "Opportunity",
+        "Research"
+      ],
+      "numDays": 3,
+      "broadcastOverrides": {}
+    },
+    "VIQRC ES": {
+      "channelId": "forwjofkekkjndq5gdps",
+      "sku": null,
+      "eventStart": "2026-04-28",
+      "eventEnd": "2026-04-30",
+      "divisions": [
+        "Arts",
+        "Engineering",
+        "Math",
+        "Science",
+        "Technology"
+      ],
+      "numDays": 3,
+      "broadcastOverrides": {}
+    },
+    "VIQRC MS": {
+      "channelId": "sooczxjv6zfijyjnw3yn",
+      "sku": null,
+      "eventStart": "2026-04-28",
+      "eventEnd": "2026-04-30",
+      "divisions": [
+        "Design",
+        "Innovate",
+        "Opportunity",
+        "Research",
+        "Spirit"
+      ],
+      "numDays": 3,
+      "broadcastOverrides": {}
+    }
+  }
+}

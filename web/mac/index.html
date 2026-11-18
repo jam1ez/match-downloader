@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="token" content="__TOKEN__">
+<title>Match Downloader</title>
+<link rel="stylesheet" href="/mac/app.css">
+</head>
+<body>
+<!-- Original line icons drawn to sit beside 13 pt system text (SF Symbols are not licensed for web use). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-sidebar" viewBox="0 0 18 18"><rect x="1.75" y="3.25" width="14.5" height="11.5" rx="2.5"/><path d="M6.75 3.5v11"/><path d="M3.6 6.2h1.4M3.6 8.4h1.4"/></symbol>
+    <symbol id="i-inspector" viewBox="0 0 18 18"><rect x="1.75" y="3.25" width="14.5" height="11.5" rx="2.5"/><path d="M11.25 3.5v11"/><path d="M13 6.2h1.4M13 8.4h1.4"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 18 18"><path d="M14.25 9a5.25 5.25 0 1 1-1.6-3.78"/><path d="M13.1 2.6v3.1H10"/></symbol>
+    <symbol id="i-play" viewBox="0 0 18 18"><path d="M5.5 3.6v10.8l8.6-5.4z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.25"/><path d="M9 5.3V9l2.6 1.6"/></symbol>
+    <symbol id="i-download" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.75"/><path d="M9 5.4v6.2M6.4 9.2 9 11.8l2.6-2.6"/></symbol>
+    <symbol id="i-link" viewBox="0 0 18 18"><path d="M7.6 10.4a2.9 2.9 0 0 0 4.1 0l2.4-2.4a2.9 2.9 0 0 0-4.1-4.1l-.9.9"/><path d="M10.4 7.6a2.9 2.9 0 0 0-4.1 0L3.9 10a2.9 2.9 0 0 0 4.1 4.1l.9-.9"/></symbol>
+    <symbol id="i-event" viewBox="0 0 18 18"><rect x="2.25" y="3.5" width="13.5" height="11.25" rx="2"/><path d="M2.5 7.1h13M6 2.2v2.6M12 2.2v2.6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 18 18"><path d="M9 3.75v10.5M3.75 9h10.5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 18 18"><circle cx="7.9" cy="7.9" r="4.6"/><path d="m11.3 11.3 3.6 3.6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 18 18"><path d="M3.5 5h11M7.25 5V3.5h3.5V5M5 5l.7 9.2a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L13 5"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.75"/><rect x="6.6" y="6.6" width="4.8" height="4.8" rx=".8"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 18 18"><path d="M3.75 9a5.25 5.25 0 1 0 1.6-3.78"/><path d="M4.9 2.6v3.1H8"/></symbol>
+    <symbol id="i-save" viewBox="0 0 18 18"><path d="M9 2.75v8.5M5.9 8.4 9 11.5l3.1-3.1"/><path d="M3.5 12.5v1.75c0 .55.45 1 1 1h9c.55 0 1-.45 1-1V12.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 18 18"><path d="M5.6 9.3 7.9 11.6 12.6 6.4"/><circle cx="9" cy="9" r="6.75"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 10 10"><path d="M3.5 2 6.5 5 3.5 8"/></symbol>
+  </defs>
+</svg>
+
+<div class="window" id="window">
+  <!-- Sidebar -->
+  <nav class="sidebar glass panel" id="sidebar" aria-label="Sidebar">
+    <div class="sb-top">
+      <div class="search small field-fill">
+        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+        <label class="sr" for="sbFilter">Filter events</label>
+        <input id="sbFilter" type="search" placeholder="Filter" autocomplete="off">
+      </div>
+      <button type="button" class="icon-btn" id="sbAdd" title="Add Events…" aria-label="Add Events…"><svg class="ic"><use href="#i-plus"/></svg></button>
+    </div>
+    <div class="sb-scroll" id="sbScroll">
+      <h2 class="sb-head">Library</h2>
+      <ul class="sb-list" role="list">
+        <li><a href="#/downloads" class="sb-item" data-nav="downloads"><svg class="ic tint"><use href="#i-download"/></svg><span>Downloads</span><span class="badge" id="sbBadge"></span></a></li>
+        <li><a href="#/clip" class="sb-item" data-nav="clip"><svg class="ic tint"><use href="#i-link"/></svg><span>Clip from Link</span></a></li>
+      </ul>
+      <button type="button" class="sb-head disclose" aria-expanded="true" data-section="saved"><svg class="chev" aria-hidden="true"><use href="#i-chevron"/></svg>On This Mac</button>
+      <ul class="sb-list" id="sbSaved" role="list"></ul>
+      <div class="sb-head-row">
+        <button type="button" class="sb-head disclose" aria-expanded="true" data-section="catalogue"><svg class="chev" aria-hidden="true"><use href="#i-chevron"/></svg>Event Catalogue</button>
+        <button type="button" class="icon-btn mini" id="sbUpdate" title="Update Event Catalogue" aria-label="Update Event Catalogue"><svg class="ic"><use href="#i-refresh"/></svg></button>
+      </div>
+      <ul class="sb-list" id="sbCatalogue" role="list"></ul>
+      <p class="sb-note" id="sbNote"></p>
+    </div>
+  </nav>
+
+  <!-- Main column -->
+  <section class="main" id="main">
+    <header class="toolbar" id="toolbar">
+      <button type="button" class="tb-btn glass round" id="tbSidebar" title="Hide Sidebar (⌃⌘S)" aria-label="Toggle Sidebar" aria-controls="sidebar" aria-expanded="true"><svg class="ic"><use href="#i-sidebar"/></svg></button>
+      <div class="tb-title">
+        <h1 id="tbTitle">Match Downloader</h1>
+        <p id="tbSubtitle"></p>
+      </div>
+      <div class="tb-group glass" id="tbEventActions" hidden>
+        <button type="button" class="tb-btn" id="tbRefresh" title="Refresh Schedule" aria-label="Refresh Schedule"><svg class="ic"><use href="#i-refresh"/></svg></button>
+        <button type="button" class="tb-btn" id="tbPreview" title="Preview (Space)" aria-label="Preview"><svg class="ic"><use href="#i-play"/></svg></button>
+        <button type="button" class="tb-btn" id="tbPosition" title="Set Video Position…" aria-label="Set Video Position…"><svg class="ic"><use href="#i-clock"/></svg></button>
+      </div>
+      <button type="button" class="tb-prominent" id="tbDownload" disabled hidden>Download…</button>
+      <div class="tb-group glass" id="tbLibActions" hidden>
+        <button type="button" class="tb-btn" id="tbPlay" title="Play (Space)" aria-label="Play"><svg class="ic"><use href="#i-play"/></svg></button>
+        <button type="button" class="tb-btn" id="tbSave" title="Save MP4 As…" aria-label="Save MP4 As…"><svg class="ic"><use href="#i-save"/></svg></button>
+        <button type="button" class="tb-btn" id="tbReview" title="Check Start and End…" aria-label="Check Start and End…"><svg class="ic"><use href="#i-check"/></svg></button>
+        <button type="button" class="tb-btn" id="tbRetry" title="Retry Download" aria-label="Retry Download"><svg class="ic"><use href="#i-retry"/></svg></button>
+        <button type="button" class="tb-btn" id="tbCancel" title="Stop Download" aria-label="Stop Download"><svg class="ic"><use href="#i-stop"/></svg></button>
+        <button type="button" class="tb-btn" id="tbDelete" title="Delete (⌘⌫)" aria-label="Delete"><svg class="ic"><use href="#i-trash"/></svg></button>
+      </div>
+      <div class="search glass" id="tbSearchWrap" hidden>
+        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+        <label class="sr" for="tbSearch">Search</label>
+        <input id="tbSearch" type="search" placeholder="Search" autocomplete="off">
+      </div>
+      <button type="button" class="tb-btn glass round" id="tbInspector" title="Show Inspector (⌥⌘I)" aria-label="Toggle Inspector" aria-controls="inspector" aria-expanded="false"><svg class="ic"><use href="#i-inspector"/></svg></button>
+    </header>
+
+    <div class="content" id="content">
+      <!-- Event -->
+      <div class="pane" id="paneEvent" hidden>
+        <div class="scopebar" role="toolbar" aria-label="Filters">
+          <div class="filter-group glass">
+          <label class="sr" for="fDivision">Division</label><select id="fDivision" class="popup"></select>
+          <label class="sr" for="fRound">Round</label>
+          <select id="fRound" class="popup">
+            <option value="all">All Rounds</option><option value="P">Practice</option><option value="Q">Qualifications</option><option value="R16">Round of 16</option>
+            <option value="QF">Quarterfinals</option><option value="SF">Semifinals</option><option value="F">Finals</option>
+          </select>
+          <label class="sr" for="fDay">Day</label><select id="fDay" class="popup"></select>
+          <label class="chip"><input type="checkbox" id="fVideo"><span>Has Video</span></label>
+          </div>
+        </div>
+        <p class="infobar" id="infobar" role="status" hidden></p>
+        <div class="table-scroll" id="evScroll">
+          <table class="grid" id="evGrid" role="grid" aria-multiselectable="true" aria-label="Match schedule">
+            <colgroup id="evCols"></colgroup>
+            <thead><tr id="evHead"></tr></thead>
+            <tbody id="evRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Downloads -->
+      <div class="pane" id="paneDownloads" hidden>
+        <div class="scopebar" role="toolbar" aria-label="Show">
+          <div class="segmented glass" id="libScope" role="radiogroup" aria-label="Show downloads">
+            <label><input type="radio" name="libscope" value="all" checked><span>All <i data-n="all"></i></span></label>
+            <label><input type="radio" name="libscope" value="ready"><span>Saved <i data-n="ready"></i></span></label>
+            <label><input type="radio" name="libscope" value="active"><span>In Progress <i data-n="active"></i></span></label>
+            <label><input type="radio" name="libscope" value="needs_review"><span>Needs Review <i data-n="needs_review"></i></span></label>
+            <label><input type="radio" name="libscope" value="failed"><span>Failed <i data-n="failed"></i></span></label>
+          </div>
+        </div>
+        <div class="table-scroll" id="libScroll">
+          <table class="grid" id="libGrid" role="grid" aria-multiselectable="true" aria-label="Downloads">
+            <colgroup id="libCols"></colgroup>
+            <thead><tr id="libHead"></tr></thead>
+            <tbody id="libRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Clip from Link -->
+      <div class="pane form-pane" id="paneClip" hidden>
+        <form id="clipForm" class="mac-form" aria-labelledby="clipHeading">
+          <h2 id="clipHeading" class="sr">Clip from Link</h2>
+          <p class="secondary">For recordings that aren't tied to an event schedule. Start and End are positions in the recording.</p>
+          <div class="form-row"><label for="cTitle">Name:</label><input id="cTitle" required maxlength="200" placeholder="Worlds Arts Q42"></div>
+          <div class="form-row"><label for="cUrl">Recording:</label><input id="cUrl" type="url" required placeholder="YouTube, Vimeo, BoxCast, MP4 or HLS link"></div>
+          <div class="form-row"><label for="cStart">Start:</label><input id="cStart" class="short" required value="00:00:00"></div>
+          <div class="form-row"><label for="cEnd">End:</label><input id="cEnd" class="short" required placeholder="00:03:00"></div>
+          <div class="form-row top"><label for="cNotes">Notes:</label><textarea id="cNotes" rows="3" placeholder="Teams, score, what to watch for"></textarea></div>
+          <p class="form-error" id="clipError" role="alert"></p>
+          <div class="form-row"><span></span><div class="btn-row"><button class="push default">Add to Downloads</button></div></div>
+        </form>
+        <section class="mac-form" aria-labelledby="importHeading">
+          <h2 id="importHeading">Import a List</h2>
+          <p class="secondary">A JSON file with an array of entries, each with a title, url, start, end and notes. <span class="mono">example-matches.json</span> in the app folder shows the format.</p>
+          <div class="form-row"><span></span><div class="btn-row"><button type="button" class="push" id="importChoose">Choose File…</button><input id="importFile" type="file" accept="application/json,.json" hidden></div></div>
+          <div id="importList" class="import-list" hidden></div>
+          <div class="form-row" id="importActions" hidden><span></span><div class="btn-row"><button type="button" class="push default" id="importQueue">Add Selected to Downloads</button></div></div>
+        </section>
+      </div>
+
+      <!-- Empty -->
+      <div class="pane empty" id="paneEmpty">
+        <p class="empty-title" id="emptyTitle">No Event Selected</p>
+        <p class="secondary" id="emptyText">Choose an event in the sidebar, or click + to add one by its code or VEX Events link.</p>
+      </div>
+    </div>
+
+    <div class="edge" id="edge" aria-hidden="true"></div>
+    <footer class="hud glass" id="hud">
+      <span id="statusLeft"></span>
+      <span id="statusRight" role="status" aria-live="polite"></span>
+    </footer>
+  </section>
+
+  <!-- Inspector -->
+  <aside class="inspector glass panel" id="inspector" aria-label="Inspector" hidden>
+    <div class="insp-tabs" id="inspTabs" role="tablist" hidden>
+      <div class="segmented">
+        <label><input type="radio" name="insp" value="match" checked><span>Match</span></label>
+        <label><input type="radio" name="insp" value="recordings"><span>Recordings</span></label>
+      </div>
+    </div>
+    <div class="insp-body" id="inspBody"></div>
+  </aside>
+</div>
+
+<!-- Context menu -->
+<div class="menu" id="menu" role="menu" hidden></div>
+
+<!-- Sheets -->
+<dialog class="sheet" id="shDownload" aria-labelledby="dlTitle">
+  <form id="dlForm">
+    <h2 id="dlTitle">Download Matches</h2>
+    <p class="secondary" id="dlSummary"></p>
+    <fieldset class="radio-group">
+      <legend>Clip boundaries:</legend>
+      <label><input type="radio" name="dlMode" value="dynamic" checked> Find the match start and end <span class="secondary">Reads the on-screen match clock. Unclear results wait for you in Downloads.</span></label>
+      <label><input type="radio" name="dlMode" value="fixed"> Fixed length from the video position</label>
+    </fieldset>
+    <div class="form-grid">
+      <label for="dlWindow" data-mode="dynamic">Search window:</label>
+      <select id="dlWindow" class="popup" data-mode="dynamic"><option value="480">8 minutes</option><option value="720">12 minutes</option><option value="1200">20 minutes</option></select>
+      <label for="dlLength" data-mode="fixed">Length:</label>
+      <span class="unit" data-mode="fixed"><input id="dlLength" type="number" min="1" max="3600" value="180"> seconds</span>
+      <label for="dlBefore">Before match:</label>
+      <span class="unit"><input id="dlBefore" type="number" min="0" max="60" value="5"> seconds</span>
+      <label for="dlAfter" data-mode="dynamic">After match:</label>
+      <span class="unit" data-mode="dynamic"><input id="dlAfter" type="number" min="0" max="60" value="5"> seconds</span>
+      <label for="dlShift">Shift positions:</label>
+      <span class="unit"><input id="dlShift" type="number" min="-3600" max="3600" value="0"> seconds <span class="secondary">positive is later</span></span>
+    </div>
+    <p class="form-error" id="dlError" role="alert"></p>
+    <div class="sheet-buttons"><button type="button" class="push" data-cancel>Cancel</button><button class="push default" id="dlGo">Download</button></div>
+  </form>
+</dialog>
+
+<dialog class="sheet" id="shPosition" aria-labelledby="posTitle">
+  <form id="posForm">
+    <h2 id="posTitle">Set Video Position</h2>
+    <p class="secondary">Where this match starts in its recording. Works with any supported link.</p>
+    <div class="form-grid">
+      <label for="posUrl">Recording:</label><input id="posUrl" type="url" required>
+      <label for="posAt">Match starts at:</label><input id="posAt" class="short" required placeholder="01:24:10">
+    </div>
+    <p class="form-error" id="posError" role="alert"></p>
+    <div class="sheet-buttons"><button type="button" class="push" data-cancel>Cancel</button><button class="push default">Save</button></div>
+  </form>
+</dialog>
+
+<dialog class="sheet" id="shAdd" aria-labelledby="addTitle">
+  <form id="addForm">
+    <h2 id="addTitle">Add Events</h2>
+    <p class="secondary">Enter an event code such as VE-V5-26-65786, or paste its VEX Events link. Add several by putting one on each line.</p>
+    <label class="sr" for="addInput">Event codes or links</label>
+    <textarea id="addInput" rows="5" required></textarea>
+    <p class="secondary" id="addStatus" role="status"></p>
+    <div class="sheet-buttons"><button type="button" class="push" data-cancel>Cancel</button><button class="push default" id="addGo">Add</button></div>
+  </form>
+</dialog>
+
+<dialog class="sheet wide" id="shEditor" aria-labelledby="edTitle">
+  <form id="edForm">
+    <h2 id="edTitle">Add Recording</h2>
+    <input type="hidden" id="eId">
+    <div class="form-grid">
+      <label for="eUrl">Link:</label>
+      <div class="inline"><input id="eUrl" type="url" required placeholder="YouTube, Vimeo, BoxCast, MP4 or HLS"><button type="button" class="push" id="eProbe">Read Details</button></div>
+      <span></span><p class="secondary" id="eInfo" role="status"></p>
+      <label for="eChannelPick" data-channel hidden>Recording:</label>
+      <div class="inline" data-channel hidden><select id="eChannelPick" class="popup"></select><button type="button" class="push" id="eChannelUse">Use</button></div>
+      <label for="eLabel">Name:</label><input id="eLabel" placeholder="Day 1 morning, Field 2">
+      <label for="eDay">Day:</label><div class="inline"><input id="eDay" type="date" required list="eDays" class="short"><datalist id="eDays"></datalist></div>
+      <label for="eDivision">Division:</label><select id="eDivision" class="popup"></select>
+      <label for="eField">Field:</label><select id="eField" class="popup"></select>
+      <label for="eFirst">Covers:</label>
+      <div class="inline"><select id="eFirst" class="popup" aria-label="First match"></select><span class="secondary">to</span><select id="eLast" class="popup" aria-label="Last match"></select></div>
+      <label for="eBasis">Match times:</label><select id="eBasis" class="popup"><option value="actual">Actual start</option><option value="scheduled">Scheduled start</option></select>
+    </div>
+    <fieldset class="radio-group">
+      <legend>Line up with the schedule using:</legend>
+      <label><input type="radio" name="sync" value="auto" checked> The broadcast start time <span class="secondary">Read automatically from the live stream.</span></label>
+      <label><input type="radio" name="sync" value="anchor"> A match I can see in the recording</label>
+      <label><input type="radio" name="sync" value="wallclock"> The time the recording began</label>
+      <label><input type="radio" name="sync" value="none"> Nothing yet <span class="secondary">Save the link without positions.</span></label>
+    </fieldset>
+    <div class="form-grid" id="eAnchorFields" hidden>
+      <label for="eAnchor">Match:</label><select id="eAnchor" class="popup"></select>
+      <label for="ePosition">Starts at:</label><div class="inline"><input id="ePosition" class="short" placeholder="00:32:10"><button type="button" class="push" id="eCapture" disabled>Use Player Time</button></div>
+    </div>
+    <div class="form-grid" id="eWallFields" hidden>
+      <label for="eWall">Began at:</label><div class="inline"><input id="eWall" placeholder="2026-11-14T09:00:00-08:00"><button type="button" class="push" id="eUseDetected" disabled>Use Detected Time</button></div>
+    </div>
+    <div class="player-block">
+      <button type="button" class="push" id="eLoadPlayer">Show Player</button>
+      <div id="ePlayerWrap" hidden>
+        <div id="ePlayer" class="player"></div>
+        <div class="player-bar"><span class="secondary" id="ePlayerState" role="status"></span><span class="btn-row"><button type="button" class="push" id="eBack">Back 10 s</button><button type="button" class="push" id="eFwd">Forward 10 s</button></span></div>
+      </div>
+    </div>
+    <div class="form-grid">
+      <label for="eOffset">Shift:</label><span class="unit"><input id="eOffset" type="number" min="-3600" max="3600" value="0"> seconds <span class="secondary">positive is later</span></span>
+      <label for="eDuration">Length:</label><span class="unit"><input id="eDuration" type="number" min="1"> seconds <span class="secondary">optional</span></span>
+      <span></span><label class="check"><input id="eEnabled" type="checkbox" checked> Use for video positions</label>
+      <span></span><label class="check"><input id="eFillOnly" type="checkbox"> Only fill matches that have no position</label>
+    </div>
+    <p class="form-error" id="eError" role="alert"></p>
+    <div class="sheet-buttons"><button type="button" class="push" data-cancel>Cancel</button><button class="push default" id="eSave">Save</button></div>
+  </form>
+</dialog>
+
+<dialog class="sheet wide" id="shBounds" aria-labelledby="bTitle">
+  <form id="bForm">
+    <h2 id="bTitle">Check Start and End</h2>
+    <p class="secondary" id="bReason"></p>
+    <video id="bVideo" controls playsinline></video>
+    <div class="form-grid">
+      <label for="bStart">Start:</label><div class="inline"><input id="bStart" class="short" required><button type="button" class="push" id="bMarkStart">Use Current Time</button></div>
+      <label for="bEnd">End:</label><div class="inline"><input id="bEnd" class="short" required><button type="button" class="push" id="bMarkEnd">Use Current Time</button></div>
+    </div>
+    <p class="secondary" id="bOrigin"></p>
+    <p class="form-error" id="bError" role="alert"></p>
+    <div class="sheet-buttons"><button type="button" class="push" data-cancel>Cancel</button><button class="push default">Save Clip</button></div>
+  </form>
+</dialog>
+
+<!-- Quick Look style viewer -->
+<dialog class="viewer" id="viewer" aria-labelledby="vTitle">
+  <div class="viewer-bar">
+    <button type="button" class="push" data-cancel>Close</button>
+    <h2 id="vTitle"></h2>
+    <span class="btn-row"><button type="button" class="push" id="vJump" disabled>Go to Match Start</button><a class="push" id="vOpen" target="_blank" rel="noopener noreferrer">Open in Browser…</a></span>
+  </div>
+  <div id="vFrame" class="player"></div>
+  <video id="vVideo" controls playsinline hidden></video>
+  <p class="viewer-state" id="vState" role="status"></p>
+</dialog>
+
+<!-- Alert -->
+<dialog class="alert" id="alert" aria-labelledby="alTitle" aria-describedby="alText">
+  <form method="dialog">
+    <h2 id="alTitle"></h2>
+    <p id="alText"></p>
+    <div class="alert-buttons"><button value="cancel" class="push">Cancel</button><button value="ok" class="push" id="alOk"></button></div>
+  </form>
+</dialog>
+
+<script type="module" src="/mac/app.js"></script>
+</body>
+</html>
