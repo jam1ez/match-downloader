@@ -6,6 +6,7 @@ final class EventStore {
     var client: APIClient?
     var event: EventDetail?
     var catalogue: [CatalogueEvent] = []
+    var worlds: WorldsSeason?
     var loading = false
     var working = false
     var error: String?
@@ -16,7 +17,7 @@ final class EventStore {
 
     func catalogue(refresh: Bool = false) async {
         guard let client else { return }
-        do { catalogue = try await client.catalogue(refresh: refresh).events }
+        do { let result = try await client.catalogue(refresh: refresh); catalogue = result.events; worlds = result.worlds }
         catch { self.error = error.localizedDescription }
     }
     func archive(_ sku: String, _ archived: Bool) async {

@@ -82,7 +82,7 @@
   "2026": {
     "V5RC HS": {
       "channelId": "jmhkmkbdwsh3fg4pfoqn",
-      "sku": null,
+      "sku": "RE-V5RC-26-4025",
       "eventStart": "2026-04-21",
       "eventEnd": "2026-04-24",
       "divisions": [
@@ -102,7 +102,7 @@
     },
     "V5RC MS": {
       "channelId": "rguwbt3mtvp4gseosarn",
-      "sku": null,
+      "sku": "RE-V5RC-26-4026",
       "eventStart": "2026-04-25",
       "eventEnd": "2026-04-27",
       "divisions": [
@@ -119,7 +119,7 @@
     },
     "VURC": {
       "channelId": "yignzh2p52kbstxrrsl8",
-      "sku": null,
+      "sku": "RE-VURC-26-4027",
       "eventStart": "2026-04-25",
       "eventEnd": "2026-04-27",
       "divisions": [
@@ -132,7 +132,7 @@
     },
     "VIQRC ES": {
       "channelId": "forwjofkekkjndq5gdps",
-      "sku": null,
+      "sku": "RE-VIQRC-26-4029",
       "eventStart": "2026-04-28",
       "eventEnd": "2026-04-30",
       "divisions": [
@@ -147,7 +147,7 @@
     },
     "VIQRC MS": {
       "channelId": "sooczxjv6zfijyjnw3yn",
-      "sku": null,
+      "sku": "RE-VIQRC-26-4028",
       "eventStart": "2026-04-28",
       "eventEnd": "2026-04-30",
       "divisions": [

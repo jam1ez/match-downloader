@@ -3,7 +3,11 @@ import json
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlencode
-CONFIG=json.loads((Path(__file__).resolve().parent/'worlds.json').read_text())
+ROOT=Path(__file__).resolve().parent
+CONFIG=json.loads((ROOT/'worlds.json').read_text())
+# The Worlds folder in the app. To follow a new Worlds, run tools/new_worlds_season.py (see README).
+PROGRAM_LABELS={'V5RC HS':'V5RC High School','V5RC MS':'V5RC Middle School','VURC':'VEX U','VIQRC MS':'VIQRC Middle School','VIQRC ES':'VIQRC Elementary'}
+PROGRAM_ORDER=list(PROGRAM_LABELS)
 HS_OFFSETS={'Arts':0,'Design':-47,'Engineering':-50,'Innovate':-55,'Math':-51,'Opportunity':-50,'Research':-49,'Science':-41,'Spirit':-47,'Technology':-48}
 
 def dt(value):
@@ -60,3 +64,15 @@ def timestamps(event,rows,fetch):
             out.append({'id':m['id'],'timestamp':int(seek),'livestreamLink':'https://boxcast.tv/view/'+b['id'],'timing':'BoxCast estimate'})
         except (ValueError,KeyError,TypeError):continue
     return out
+
+def season():
+    """The Worlds shown in the app's Worlds folder: {'title','year','events':[{sku,label,program,start,end,channelId}]}.
+    Which Worlds it is comes only from worlds-season.json; nothing in the interface changes it."""
+    try:cfg=json.loads((ROOT/'worlds-season.json').read_text())
+    except (OSError,ValueError):return None
+    year=str(cfg.get('year',''));programs=json.loads((ROOT/'worlds.json').read_text()).get(year)
+    if not programs:return None
+    events=[{'sku':c['sku'],'label':PROGRAM_LABELS.get(p,p),'program':p,'start':c.get('eventStart'),'end':c.get('eventEnd'),'channelId':c['channelId']}
+            for p,c in programs.items() if c.get('sku')]
+    events.sort(key=lambda e:(e['start'] or '',PROGRAM_ORDER.index(e['program']) if e['program'] in PROGRAM_ORDER else 99))
+    return {'title':str(cfg.get('title') or 'Worlds '+year[-2:]),'year':year,'events':events} if events else None

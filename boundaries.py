@@ -4,6 +4,7 @@ A timestamp locates the search window. Boundaries come from observed countdowns,
 not a fixed interval. A two-phase match needs both countdowns; uncertain results
 remain available for review rather than silently using a guessed duration.
 """
+import threading
 import csv, hashlib, json, math, os, platform, re, shutil, statistics, subprocess, sys
 from pathlib import Path
 from events import canonical_label
@@ -101,15 +102,19 @@ def detect(frames,anchor,match_label='',format='two-phase',lead=5,tail=5,duratio
     else:best['reason']='Verified match label and complete countdown'+('s, including the autonomous-to-driver pause.' if format=='two-phase' else '.')
     return best
 
+_BUILD_LOCK=threading.Lock()  # two jobs must not compile the helper at once
 def ocr_engine(root):
     Path(root).mkdir(parents=True,exist_ok=True)
     if sys.platform=='darwin' and shutil.which('swiftc'):
         source=Path(__file__).resolve().parent/'tools/ocr.swift'
         key=hashlib.sha256(source.read_bytes()).hexdigest()[:12]
         binary=Path(root)/('vision-'+platform.machine()+'-'+key)
-        if not binary.exists():
-            cache=Path(root)/'swift-cache';cache.mkdir(exist_ok=True)
-            subprocess.run(['swiftc','-module-cache-path',str(cache),str(source),'-o',str(binary)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=180)
+        with _BUILD_LOCK:
+            if not binary.exists():
+                cache=Path(root)/'swift-cache';cache.mkdir(exist_ok=True)
+                partial=binary.with_name(binary.name+'.building')
+                subprocess.run(['swiftc','-module-cache-path',str(cache),str(source),'-o',str(partial)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=180)
+                partial.replace(binary)
         return ['vision',str(binary)]
     if shutil.which('tesseract'):return ['tesseract',shutil.which('tesseract')]
     raise RuntimeError('Automatic timer reading is unavailable on this laptop. Review this recording window to choose the match boundaries.')

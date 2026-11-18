@@ -93,3 +93,12 @@ func fixture<T: Decodable>(_ name: String, as: T.Type = T.self) throws -> T {
     #expect(clips[0].progress?.fraction == 0.42 && clips[0].progress?.eta == 65)
     #expect(clips[1].progress == nil && clips[2].progress == nil)
 }
+
+@Test func catalogueReadsTheWorldsFolderWhenPresent() throws {
+    let json = #"{"events":[],"worlds":{"title":"Worlds 26","year":"2026","events":[{"sku":"RE-V5RC-26-4025","label":"V5RC High School","program":"V5RC HS","start":"2026-04-21","end":"2026-04-24","channelId":"abc123","saved":true},{"sku":"RE-VURC-26-4027","label":"VEX U","program":"VURC","channelId":""}]}}"#
+    let catalogue = try JSONDecoder().decode(Catalogue.self, from: Data(json.utf8))
+    #expect(catalogue.worlds?.title == "Worlds 26" && catalogue.worlds?.events.count == 2)
+    #expect(catalogue.worlds?.events[0].channelURL?.absoluteString == "https://www.vexworlds.tv/#/channels/abc123")
+    #expect(catalogue.worlds?.events[1].channelURL == nil)
+    #expect(try JSONDecoder().decode(Catalogue.self, from: Data(#"{"events":[]}"#.utf8)).worlds == nil)
+}

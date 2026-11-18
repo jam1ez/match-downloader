@@ -115,10 +115,33 @@ public struct CatalogueEvent: Codable, Sendable, Hashable, Identifiable {
     public var archived: Bool?
     public var isArchived: Bool { saved && archived == true }
     public var id: String { sku }
+    public init(sku: String, name: String, saved: Bool, custom: Bool = false, archived: Bool? = nil) {
+        self.sku = sku; self.name = name; self.saved = saved; self.custom = custom; self.archived = archived
+    }
+}
+
+/// The Worlds folder: which Worlds it is comes from the engine's worlds-season.json, never from the interface.
+public struct WorldsSeason: Codable, Sendable, Hashable {
+    public var title: String
+    public var year: String
+    public var events: [WorldsEvent]
+}
+public struct WorldsEvent: Codable, Sendable, Hashable, Identifiable {
+    public var sku: String
+    public var label: String
+    public var program: String
+    public var start: String?
+    public var end: String?
+    public var channelId: String?
+    public var saved: Bool?
+    public var id: String { sku }
+    /// The event's channel on vexworlds.tv.
+    public var channelURL: URL? { channelId.flatMap { $0.isEmpty ? nil : URL(string: "https://www.vexworlds.tv/#/channels/\($0)") } }
 }
 
 public struct Catalogue: Codable, Sendable, Hashable {
     public var events: [CatalogueEvent]
+    public var worlds: WorldsSeason?
     public var offline: Bool?
     public var cached: Bool?
 }
