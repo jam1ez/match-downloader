@@ -75,6 +75,14 @@ public struct APIClient: Sendable {
     public func loadEvent(sku: String, refresh: Bool = false) async throws -> EventDetail {
         try await post("api/events/load", Body(["sku": .string(sku), "refresh": .bool(refresh)]))
     }
+    /// Hides a saved event from the main list (or brings it back). Its schedule stays on this Mac.
+    public func archiveEvent(sku: String, archived: Bool) async throws {
+        let _: OK = try await post("api/events/archive", Body(["sku": .string(sku), "archived": .bool(archived)]))
+    }
+    /// Deletes the event's saved schedule and recordings. Downloaded matches are kept.
+    public func removeEvent(sku: String) async throws {
+        let _: OK = try await post("api/events/remove", ["sku": sku])
+    }
     @discardableResult
     public func queue(_ request: QueueRequest) async throws -> QueueResult { try await post("api/events/queue", request) }
 

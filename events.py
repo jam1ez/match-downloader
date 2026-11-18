@@ -173,6 +173,28 @@ class Events:
                 m.update(timestamp=position,url=url,available=True,timing='Recording calibration');changed+=1
         except (TypeError,ValueError):raise ValueError('Official match dates could not be used for this recording') from None
         self.write(data['sku'],data);return {'event':data,'changed':changed}
+    def archived(self):
+        """SKUs the user has put away. The schedule stays on this Mac, just out of the main list."""
+        with self.lock:
+            try:
+                value=json.loads((self.root/'archived.json').read_text())
+                return {x for x in value if isinstance(x,str)} if isinstance(value,list) else set()
+            except (OSError,ValueError):return set()
+    def set_archived(self,value,archived):
+        sku=self.sku(value)
+        with self.lock:
+            if not (self.root/(sku+'.json')).exists():raise ValueError('That event is not saved on this Mac')
+            keys=self.archived();(keys.add if archived else keys.discard)(sku);self.write('archived',sorted(keys))
+        return {'ok':True,'sku':sku,'archived':bool(archived)}
+    def remove(self,value):
+        """Deletes the saved schedule and recordings. Downloaded clips are separate and stay."""
+        sku=self.sku(value)
+        with self.lock:
+            p=self.root/(sku+'.json')
+            if not p.exists():raise ValueError('That event is not saved on this Mac')
+            p.unlink();keys=self.archived()
+            if sku in keys:keys.discard(sku);self.write('archived',sorted(keys))
+        return {'ok':True,'sku':sku}
     def saved(self):
         result=[]
         for p in [*self.root.glob('RE-*.json'),*self.root.glob('VE-*.json')]:
