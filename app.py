@@ -184,7 +184,7 @@ def downloaded_source(folder):
 # Only content problems are permanent. HTTP 403s on signed media URLs
 # (googlevideo, CDN tokens) are routinely temporary; a new attempt re-extracts
 # fresh URLs.
-PERMANENT=re.compile(r'Private video|Video unavailable|This video is unavailable|is not available|Sign in to confirm your age|members-only|Unsupported URL|DRM protected|Requested format is not available',re.I)
+PERMANENT=re.compile(r'only works when logged-in|HTTP Error 401|Private video|Video unavailable|This video is unavailable|is not available|Sign in to confirm your age|members-only|Unsupported URL|DRM protected|Requested format is not available',re.I)
 RETRY_DELAYS=(5,15)
 
 def download_with_retries(id,folder,args,check):

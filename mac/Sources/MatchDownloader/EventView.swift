@@ -31,6 +31,7 @@ struct EventView: View {
     @AppStorage("filters.visible") private var filters = true
     @State private var downloadSheet = false
     @State private var position: Match?
+    @State private var livestream: RecordingEdit?
     @State private var inspectorTab = "match"
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
@@ -80,6 +81,7 @@ struct EventView: View {
         }
         .sheet(isPresented: $downloadSheet) { if let event { DownloadSheet(event: event, selected: selected, library: library) } }
         .sheet(item: $position) { match in if let event { PositionSheet(event: event, match: match, events: events) } }
+        .sheet(item: $livestream) { item in if let event { RecordingEditor(event: event, events: events, initial: item.draft) } }
         .task(id: event?.sku) {
             try? await Task.sleep(for: .milliseconds(150))
             sort = SortPreference.decode(savedSort, choices: sortChoices, fallback: sort)
@@ -194,10 +196,64 @@ struct EventView: View {
                 } else {
                     heading(event?.name ?? "Event", event.map { "\($0.sku), \(Format.dateRange($0.allDays))" } ?? "")
                     facts([("Matches", "\(event?.matches.count ?? 0)"), ("With video", "\(event?.matchesWithVideo ?? 0)"), ("Divisions", event?.divisions.map(\.name).joined(separator: ", ") ?? "")])
+                    if !livestreamDays.isEmpty {
+                        section("Livestream") {
+                            Text("The video the app found for each day. Change it if a link doesn't play or is the wrong broadcast.").font(.callout).foregroundStyle(.secondary)
+                            ForEach(livestreamDays) { livestreamRow($0) }
+                        }
+                    }
                     Text("Select a match to see its teams, video position and download. Shift-click or Command-click to select several.").foregroundStyle(.secondary)
                 }
             }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
         }.inspectorColumnWidth(min: 260, ideal: 330, max: 440)
+    }
+    private struct LivestreamDay: Identifiable {
+        let day: String
+        let url: String?
+        let count: Int
+        let manual: Recording?
+        var id: String { day }
+    }
+    /// One row per event day: the broadcast most of that day's matches use, and whether you set it yourself.
+    private var livestreamDays: [LivestreamDay] {
+        guard let event else { return [] }
+        return event.allDays.map { day in
+            let matches = event.matches.filter { Labels.day($0) == day && $0.available }
+            let top = Dictionary(grouping: matches, by: { $0.url ?? "" }).max { $0.value.count < $1.value.count }?.key
+            let manual = event.recordings.first { $0.date == day && $0.divisionId == "*" && $0.isEnabled }
+            return LivestreamDay(day: day, url: top, count: matches.count, manual: manual)
+        }
+    }
+    private func platform(_ url: String?) -> String {
+        guard let host = url.flatMap({ URL(string: $0)?.host?.lowercased() }) else { return "No video found" }
+        if host.contains("youtu") { return "YouTube" }
+        if host.contains("vimeo") { return "Vimeo" }
+        if host.contains("boxcast") { return "BoxCast" }
+        return host.replacingOccurrences(of: "www.", with: "")
+    }
+    @ViewBuilder private func livestreamRow(_ row: LivestreamDay) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(dayLabel(row.day)).font(.headline)
+                Spacer()
+                Text(row.manual == nil ? "Automatic" : "Manual").font(.callout).foregroundStyle(.secondary)
+            }
+            Text("\(platform(row.url)) · \(Format.plural(row.count, "match", "matches")) with video").font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Button("Change…") {
+                    livestream = RecordingEdit(draft: row.manual.map { StreamDraft(editing: $0) } ?? StreamDraft(label: "Livestream", date: row.day, divisionId: "*"))
+                }.inspectorButton()
+                if let manual = row.manual {
+                    Button("Use Automatic") { events.update { client, sku in try await client.deleteStream(sku: sku, id: manual.id) } }.inspectorButton().disabled(events.working)
+                }
+                if let url = row.url.flatMap(URL.init(string:)) { Link("Open", destination: url) }
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+    private func dayLabel(_ day: String) -> String {
+        let number = (event?.allDays.firstIndex(of: day)).map { "Day \($0 + 1), " } ?? ""
+        return number + Format.dayName(day)
     }
     private func heading(_ title: String, _ subtitle: String) -> some View { InspectorHeading(title: title, subtitle: subtitle) }
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View { InspectorSection(title, content: content) }

@@ -110,3 +110,9 @@ func fixture<T: Decodable>(_ name: String, as: T.Type = T.self) throws -> T {
     let plain = try JSONSerialization.jsonObject(with: JSONEncoder().encode(QueueRequest(sku: "s", keys: ["k"]))) as? [String: Any]
     #expect(plain?["startAdjust"] as? Double == 0 && plain?["endAdjust"] as? Double == 0)
 }
+
+@Test func loginRequiredFailuresAreExplainedPlainly() {
+    let vimeo = Labels.failure("[vimeo] 1216546057: The web client only works when logged-in. Use --cookies to provide credentials\nERROR: [vimeo] 1216546057: The web client only works when logged-in.")
+    #expect(vimeo.contains("wants a login") && vimeo.contains("Livestream"))
+    #expect(Labels.failure("ERROR: [youtube] abc: Video unavailable") == "abc: Video unavailable")
+}
