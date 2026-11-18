@@ -16,7 +16,7 @@ EVENTS = Events(DATA)
 # The native app reads this token from <library>/.session-token; MATCH_DOWNLOADER_TOKEN overrides it.
 TOKEN = os.environ.get('MATCH_DOWNLOADER_TOKEN') or secrets.token_hex(24)
 TOKEN_FILE = DATA / '.session-token'
-API_VERSION = 1
+API_VERSION = 2  # bump when the Mac app needs a newer engine (2: archive/remove events, quit-when-idle)
 
 def write_token_file():
     TOKEN_FILE.unlink(missing_ok=True)
@@ -98,6 +98,32 @@ def terminate(proc):
         else:proc.terminate()
     except ProcessLookupError:pass
 
+_ENCODERS=None
+def video_encoders():
+    """H.264 encoder settings, fastest first. A Mac's VideoToolbox encoder is several times quicker than
+    libx264; libx264 stays as the fallback (other systems, or if the hardware encoder fails)."""
+    global _ENCODERS
+    if _ENCODERS is None:
+        software=['-c:v','libx264','-preset','fast','-crf','23']
+        _ENCODERS=[software]
+        if sys.platform=='darwin':
+            try:
+                found='h264_videotoolbox' in subprocess.run(['ffmpeg','-hide_banner','-encoders'],capture_output=True,text=True,timeout=20).stdout
+            except (OSError,subprocess.SubprocessError):found=False
+            if found:_ENCODERS.insert(0,['-c:v','h264_videotoolbox','-b:v','2800k','-maxrate','4M','-profile:v','high'])
+    return _ENCODERS
+
+def encode_mp4(id,source,output,start=None,length=None):
+    """Re-encodes to a laptop-compatible H.264/AAC MP4, falling back to software if hardware encoding fails."""
+    encoders=video_encoders()
+    for i,codec in enumerate(encoders):
+        args=['ffmpeg','-y']+(['-ss',str(start)] if start is not None else [])+['-i',str(source)]+(['-t',str(length)] if length is not None else [])
+        args+=codec+['-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart',str(output)]
+        try:return run(id,args)
+        except RuntimeError as e:
+            Path(output).unlink(missing_ok=True)
+            if i==len(encoders)-1 or str(e)=='Cancelled':raise
+
 def downloaded_source(folder):
     """The merged yt-dlp output, never a leftover per-format fragment."""
     files=[p for p in folder.glob('source.*') if p.is_file() and p.suffix not in ('.part','.ytdl','.tmp') and not re.search(r'\.(?:part|temp)',p.name)]
@@ -151,7 +177,7 @@ def process_clip(id):
             update(id,source_start=source_start,status='downloading',detail='Downloading a wider window for actual match detection…' if dynamic else 'Downloading selected interval…')
             # A failed earlier attempt can leave per-format fragments
             # (source.f399.mp4 has no audio) or an interval from other settings.
-            args=[sys.executable,'-m','yt_dlp','--no-playlist','--no-warnings','--newline','--retries','3','--socket-timeout','30','--js-runtimes','node','-f','bv*[height<=720]+ba/b[height<=720]/b','--merge-output-format','mp4','--download-sections',f"*{source_start}-{source_end}",'--force-keyframes-at-cuts','-o',str(folder/'source.%(ext)s'),'--',boxcast(row['url'])]
+            args=[sys.executable,'-m','yt_dlp','--no-playlist','--no-warnings','--newline','--retries','3','--socket-timeout','30','--js-runtimes','node','-f','bv*[height<=720][vcodec^=avc1][fps<=30]+ba[ext=m4a]/bv*[height<=720][vcodec^=avc1]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b','--merge-output-format','mp4','--download-sections',f"*{source_start}-{source_end}",'--force-keyframes-at-cuts','-o',str(folder/'source.%(ext)s'),'--',boxcast(row['url'])]
             download_with_retries(id,folder,args,check)
             source=downloaded_source(folder);check()
             relative_start=0;relative_end=row['end']-row['start']
@@ -168,13 +194,13 @@ def process_clip(id):
                 if result.get('confidence')!='high':
                     update(id,status='processing',detail='Preparing a review window. No final match clip has been marked ready.')
                     if source.suffix=='.mp4':source.replace(folder/'review.mp4')
-                    else:run(id,['ffmpeg','-y','-i',str(source),'-c:v','libx264','-preset','fast','-crf','23','-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart',str(folder/'review.mp4')])
+                    else:encode_mp4(id,source,folder/'review.mp4')
                     check();update(id,status='needs_review',detail=result.get('reason','Check the actual match bounds before saving.'))
                     return
                 relative_start=result['start'];relative_end=result['end']
                 update(id,start=source_start+relative_start,end=source_start+relative_end)
         check();update(id,status='processing',detail='Trimming to the actual match boundaries…' if mode!='fixed' else 'Preparing a laptop-compatible MP4…')
-        run(id,['ffmpeg','-y','-ss',str(relative_start),'-i',str(source),'-t',str(relative_end-relative_start),'-c:v','libx264','-preset','fast','-crf','23','-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart',str(folder/'clip.tmp.mp4')])
+        encode_mp4(id,source,folder/'clip.tmp.mp4',relative_start,relative_end-relative_start)
         with LOCK:
             check();(folder/'clip.tmp.mp4').replace(folder/'clip.mp4')
             detail='Saved on this laptop'

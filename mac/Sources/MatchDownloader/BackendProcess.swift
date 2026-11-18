@@ -39,6 +39,8 @@ struct BackendConfiguration: Sendable {
 /// Mac-only process ownership: never terminates a server this app merely attached to.
 @MainActor
 final class BackendProcess {
+    /// The engine version this app needs (`API_VERSION` in app.py).
+    static let engineAPI = 2
     let configuration: BackendConfiguration
     private(set) var process: Process?
     private var log: FileHandle?
@@ -94,8 +96,12 @@ final class BackendProcess {
         } catch { stop(); throw error }
     }
     private func validate(_ health: Health) throws {
-        guard health.app == "Match Downloader", health.api == 1 else {
-            throw APIError.badResponse("Another or older app is using this port. Quit the old copy and reopen Match Downloader.")
+        guard health.app == "Match Downloader" else {
+            throw APIError.badResponse("Another app is using this port. Quit it and reopen Match Downloader.")
+        }
+        guard health.api == Self.engineAPI else {
+            let command = "pkill -f \"app.py --port \(configuration.port)\""
+            throw APIError.badResponse("An older Match Downloader engine is still running in the background. Stop it, then reopen the app. In Terminal: \(command)")
         }
     }
     /// Quit with downloads still running: leave the engine going. It exits by itself when they finish.

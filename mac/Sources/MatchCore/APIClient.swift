@@ -176,7 +176,9 @@ public struct APIClient: Sendable {
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
-            let message = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
+            let message = status == 404
+                ? "The engine doesn’t support this yet. It may be an older copy still running in the background. Quit it and reopen Match Downloader."
+                : (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
             throw APIError.server(message ?? "The request failed.", status: status)
         }
         do { return try JSONDecoder().decode(T.self, from: data) }

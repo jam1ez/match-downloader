@@ -40,7 +40,7 @@ class Tests(unittest.TestCase):
             only=Path(tmp)/'one';only.mkdir();(only/'source.webm').write_bytes(b'x');self.assertEqual(app.downloaded_source(only).name,'source.webm')
     def test_health_reports_api_version(self):
         with urlopen(Request(self.base+'/api/health')) as r:info=json.load(r)
-        self.assertEqual(info['api'],1)
+        self.assertEqual(info['api'],app.API_VERSION)
     def test_token_file_lifecycle(self):
         with tempfile.TemporaryDirectory() as tmp:
             env=dict(os.environ,MATCH_DOWNLOADER_DATA=tmp);env.pop('MATCH_DOWNLOADER_TOKEN',None)
@@ -51,7 +51,7 @@ class Tests(unittest.TestCase):
                 self.assertEqual(token_file.stat().st_mode&0o777,0o600)
                 token=token_file.read_text();self.assertGreaterEqual(len(token),32)
                 base=first.split('running at ')[1].strip()
-                with urlopen(base+'/api/health') as r:self.assertEqual(json.load(r)['api'],1)
+                with urlopen(base+'/api/health') as r:self.assertEqual(json.load(r)['api'],app.API_VERSION)
                 with urlopen(Request(base+'/')) as r:self.assertIn(token,r.read().decode())
                 proc.terminate();proc.wait(timeout=10)
                 self.assertFalse(token_file.exists())
@@ -103,6 +103,24 @@ class Tests(unittest.TestCase):
         for path in ('/api/events/archive','/api/events/remove'):
             with self.assertRaises(HTTPError) as e:self.post(path,{'sku':sku})
             self.assertEqual(e.exception.code,400)
+    def test_encode_falls_back_to_software_when_hardware_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src=Path(tmp)/'in.mp4'
+            subprocess.run(['ffmpeg','-y','-loglevel','error','-f','lavfi','-i','testsrc=size=320x180:rate=15','-f','lavfi','-i','sine','-t','2','-pix_fmt','yuv420p',str(src)],check=True)
+            (app.DATA/'enc1').mkdir(exist_ok=True)
+            with app.db() as c: c.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES('enc1','t','u',0,1,'','processing','',0)")
+            saved=app._ENCODERS
+            try:
+                app._ENCODERS=[['-c:v','no_such_encoder'],['-c:v','libx264','-preset','ultrafast']]
+                out=Path(tmp)/'out.mp4';app.encode_mp4('enc1',src,out,0.5,1)
+                info=subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=codec_name','-of','csv=p=0',str(out)],text=True).strip()
+                self.assertEqual(info,'h264')
+                app._ENCODERS=[['-c:v','no_such_encoder']]
+                with self.assertRaises(RuntimeError):app.encode_mp4('enc1',src,Path(tmp)/'bad.mp4')
+                self.assertFalse((Path(tmp)/'bad.mp4').exists())
+            finally:app._ENCODERS=saved
+    def test_video_encoders_always_end_with_software(self):
+        self.assertIn('libx264',app.video_encoders()[-1])
     def test_token_env_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             env=dict(os.environ,MATCH_DOWNLOADER_DATA=tmp,MATCH_DOWNLOADER_TOKEN='fixed-test-token')
