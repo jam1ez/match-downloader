@@ -84,3 +84,12 @@ func fixture<T: Decodable>(_ name: String, as: T.Type = T.self) throws -> T {
     let events = try JSONDecoder().decode(Catalogue.self, from: Data(json.utf8)).events
     #expect(events.map(\.isArchived) == [true, false, false])  // only saved events can be archived
 }
+
+@Test func clipReadsProgressWhileActiveAndIgnoresItOtherwise() throws {
+    let active = #"{"id":"a","title":"t","url":"u","start":0,"end":10,"status":"downloading","created":1,"bytes":0,"progress":{"fraction":0.42,"eta":65}}"#
+    let unknown = #"{"id":"b","title":"t","url":"u","start":0,"end":10,"status":"analyzing","created":1,"bytes":0,"progress":null}"#
+    let done = #"{"id":"c","title":"t","url":"u","start":0,"end":10,"status":"ready","created":1,"bytes":5}"#
+    let clips = try [active, unknown, done].map { try JSONDecoder().decode(Clip.self, from: Data($0.utf8)) }
+    #expect(clips[0].progress?.fraction == 0.42 && clips[0].progress?.eta == 65)
+    #expect(clips[1].progress == nil && clips[2].progress == nil)
+}

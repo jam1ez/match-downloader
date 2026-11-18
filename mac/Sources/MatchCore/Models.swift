@@ -44,9 +44,11 @@ public struct Clip: Codable, Sendable, Hashable, Identifiable {
     public var analysisJSON: String?
     public var detectSettings: String?
     public var bytes: Int
+    /// How far a running download has got. Present only while the job is active.
+    public var progress: ClipProgress?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, url, start, end, notes, status, detail, created, bytes
+        case id, title, url, start, end, notes, status, detail, created, bytes, progress
         case eventRef = "event_ref", matchRef = "match_ref", clipMode = "clip_mode"
         case sourceStart = "source_start", analysisJSON = "analysis_json", detectSettings = "detect_settings"
     }
@@ -66,6 +68,13 @@ public struct Clip: Codable, Sendable, Hashable, Identifiable {
               let v = try? JSONDecoder().decode(JSONValue.self, from: data) else { return nil }
         return v["anchor"]?.double
     }
+}
+
+public struct ClipProgress: Codable, Sendable, Hashable {
+    /// 0...1, or nil when the length of the current step isn't known (reading the match clock).
+    public var fraction: Double?
+    /// Seconds left at the current speed.
+    public var eta: Double?
 }
 
 public struct ClipAnalysis: Codable, Sendable, Hashable {

@@ -258,14 +258,23 @@ struct AllianceCell: View {
 }
 
 struct DownloadOptions: View {
-    @AppStorage("download.mode") private var mode = "dynamic"
+    @AppStorage("download.mode") private var mode = "fixed"
     @AppStorage("download.duration") private var duration = 180.0
     @AppStorage("download.before") private var before = 5.0
     @AppStorage("download.tail") private var tail = 5.0
     @AppStorage("download.window") private var window = 480.0
     @AppStorage("download.offset") private var offset = 0.0
+    private var quick: Binding<Bool> { Binding(get: { mode == "fixed" }, set: { mode = $0 ? "fixed" : "dynamic" }) }
+    private func minutes(_ seconds: Double) -> String { String(format: seconds.truncatingRemainder(dividingBy: 60) == 0 ? "%.0f" : "%.1f", seconds / 60) }
     var body: some View {
-        Picker("Clip Length", selection: $mode) { Text("Find Start and End").tag("dynamic"); Text("Fixed Length").tag("fixed") }
+        // Toggles.md: a switch for an on/off choice, labelled with what it does, with a short explanation beneath.
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle("Quick Download", isOn: quick).toggleStyle(.switch)
+            Text(mode == "fixed"
+                 ? "Trusts the official match time and saves about \(minutes(before + duration)) minutes per match. Choose Find Start and End if a match is off."
+                 : "Searches around the match to find its start and end. Downloads about \(minutes(90 + window)) minutes per match.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
         if mode == "fixed" { TextField("Length (seconds)", value: $duration, format: .number) }
         else {
             Picker("Search Window", selection: $window) { ForEach([180.0, 300, 480, 600, 1200], id: \.self) { Text("\(Int($0 / 60)) minutes").tag($0) } }
@@ -280,7 +289,7 @@ struct DownloadSheet: View {
     let selected: [Match]
     @Bindable var library: LibraryStore
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("download.mode") private var mode = "dynamic"
+    @AppStorage("download.mode") private var mode = "fixed"
     @AppStorage("download.duration") private var duration = 180.0
     @AppStorage("download.before") private var before = 5.0
     @AppStorage("download.tail") private var tail = 5.0

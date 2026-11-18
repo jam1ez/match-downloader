@@ -76,9 +76,11 @@ def boxcast(url):
         if match: return 'https://boxcast.tv/view-embed/'+match.group(1)
     return url
 
+LOGPOS={}  # where the running command's output starts in job.log, so progress never reads an earlier step
 def run(id, args):
     log = DATA / id / 'job.log'
     with open(log,'a') as out:
+        LOGPOS[id]=os.fstat(out.fileno()).st_size
         with LOCK:
             with db() as c: row=c.execute('SELECT status FROM clips WHERE id=?',(id,)).fetchone()
             if not row or row['status']=='cancelled': raise RuntimeError('Cancelled')
@@ -97,6 +99,47 @@ def terminate(proc):
         elif os.name=='nt':subprocess.run(['taskkill','/PID',str(proc.pid),'/T','/F'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         else:proc.terminate()
     except ProcessLookupError:pass
+
+FFMPEG_TIME=re.compile(r'time=(\d+):(\d\d):(\d\d(?:\.\d+)?)')
+FFMPEG_SPEED=re.compile(r'speed=\s*([\d.]+)x')
+FORMAT_COUNT=re.compile(r'Downloading (\d+) format\(s\)')
+LASTPROG={}  # job id -> (log position, status, fraction): progress never moves backwards within a step
+def job_progress(row):
+    """How far the running download or encode has got, from ffmpeg's own progress lines.
+    {'fraction': 0-1 or None, 'eta': seconds or None}. Reading the on-screen clock has no known length.
+    yt-dlp fetches video and audio as separate passes, each counting from zero, so passes are combined:
+    the video (about 85% of the work) first, then the audio."""
+    if row['status'] not in ('downloading','processing'):
+        LASTPROG.pop(row['id'],None);return None
+    try:settings=json.loads(row.get('detect_settings') or '{}')
+    except ValueError:settings={}
+    if row.get('clip_mode')=='dynamic' and (row['status']=='downloading' or str(row.get('detail','')).startswith('Preparing a review')):
+        total=settings.get('anchor',row['start'])+settings.get('window',480)-(row.get('source_start') or 0)
+    else:total=row['end']-row['start']
+    result={'fraction':None,'eta':None}
+    log=DATA/row['id']/'job.log'
+    start=LOGPOS.get(row['id'],0)
+    try:
+        size=log.stat().st_size
+        with open(log,'rb') as f:
+            f.seek(max(start,size-2000000));text=f.read().decode('utf-8','replace')
+    except OSError:return result
+    times=[int(h)*3600+int(m)*60+float(sec) for h,m,sec in FFMPEG_TIME.findall(text)]
+    if not times or total<=0:return result
+    current=min(times[-1]/total,1)
+    formats=int(FORMAT_COUNT.search(text).group(1)) if row['status']=='downloading' and FORMAT_COUNT.search(text) else 1
+    if formats>1:
+        passes=min(sum(1 for a,b in zip(times,times[1:]) if b<a-1),formats-1)
+        rest=0.15/(formats-1)
+        overall=(0.85+(passes-1)*rest if passes else 0)+(rest if passes else 0.85)*current
+    else:overall=current
+    key=row['status'];previous=LASTPROG.get(row['id'])  # an automatic retry restarts ffmpeg; keep the bar where it was
+    if previous and previous[0]==key:overall=max(overall,previous[1])
+    LASTPROG[row['id']]=(key,overall)
+    result['fraction']=round(min(overall,0.99),4)
+    speed=FFMPEG_SPEED.findall(text)
+    if speed and float(speed[-1])>0.05:result['eta']=round(max(total-times[-1],0)/float(speed[-1]))
+    return result
 
 _ENCODERS=None
 def video_encoders():
@@ -217,7 +260,7 @@ def process_clip(id):
 def worker(id):
     with LOCK:
         if id in BUSY: return
-        BUSY.add(id)
+        BUSY.add(id);LASTPROG.pop(id,None)
     try: process_clip(id)
     finally:
         with LOCK: BUSY.discard(id)
@@ -259,6 +302,7 @@ class Handler(BaseHTTPRequestHandler):
             with db() as c: rows=[dict(r) for r in c.execute('SELECT * FROM clips ORDER BY created DESC')]
             for r in rows:
                 p=DATA/r['id']/'clip.mp4'; r['bytes']=p.stat().st_size if p.exists() else 0
+                if r['status'] in ACTIVE_STATUSES:r['progress']=job_progress(r)
             return self.json({'clips':rows,'ffmpeg':bool(shutil.which('ffmpeg')),'storage':str(DATA),'free':shutil.disk_usage(DATA).free})
         # Redesign prototype (Match Downloader): same API, separate files.
         # Pages: the macOS 27 interface is the default; earlier interfaces stay available.

@@ -165,3 +165,16 @@ Before long polish/review: inspect source with apple-design references; improve 
 
 ## Collapsible sidebar sections (2026-11-18)
 - Archived (collapsed by default) and Event Catalogue (open by default) can be collapsed; the choice is remembered, and both open while searching. Not verified by clicking.
+
+## Download progress on hover (2026-11-18)
+- Engine: `/api/library` adds `progress {fraction, eta}` for downloading/processing jobs, read from ffmpeg output of the running step only. Reading the match clock has no known length, so no fraction.
+- App: Status cell shows a ring (filled when known) and a 2 pt hairline; hovering the cell expands it to a 5 pt bar with "42% · about 1 min left". Inspector shows the bar always. Row height does not change. Reduce Motion respected.
+- Verified: real 2-minute download on a temp library reported steady fractions and ETA; Swift and Python tests. Not verified by looking at the hover in the app.
+
+## Progress bar fix (2026-11-18)
+- Engine: progress combines yt-dlp video and audio passes, never moves backwards within a step, and holds its place across automatic retries.
+- App: the bar fill is a scaled shape (no GeometryReader, no layout animation); the inspector reserves a fixed-height block so nothing shifts.
+- Could not reproduce the engine-side bounce on YouTube (raw ffmpeg times were monotone in a live match-detection download); the fixes cover the likely causes. Not verified by looking at the UI.
+
+## New app icon (2026-11-18)
+- Replaced the placeholder (flat systemBlue) with a graphite tile on the macOS 824 pt grid: white play triangle over a red/blue scrubber (the two alliances). Drawn by `mac/scripts/make-icon.swift`; `build-app.sh` installs it. Dock caches icons: relaunch, or `killall Dock`.
