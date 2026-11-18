@@ -9,9 +9,9 @@ struct WorkspaceView: View {
     @State private var sidebarSearch = ""
     @State private var addEvents = false
     @State private var removing: CatalogueEvent?
-    @AppStorage("sidebar.archivedExpanded") private var archivedExpanded = false
+    @AppStorage("sidebar.archivedExpanded.v2") private var archivedExpanded = false
     @AppStorage("sidebar.catalogueExpanded") private var catalogueExpanded = true
-    @AppStorage("sidebar.worldsExpanded") private var worldsExpanded = true
+    @AppStorage("sidebar.worldsExpanded.v2") private var worldsExpanded = false
     @State private var visibility = NavigationSplitViewVisibility.automatic
     var body: some View {
         NavigationSplitView(columnVisibility: $visibility) {
@@ -20,10 +20,10 @@ struct WorkspaceView: View {
                     Label("Downloads", systemImage: "arrow.down.circle").badge(library.activeCount).tag("downloads")
                     Label("Clip from Link", systemImage: "scissors").tag("clip")
                 }
+                Section("On This Mac") { ForEach(filtered.filter { $0.saved && !$0.isArchived }) { item in savedRow(item) } }
                 if let worlds = events.worlds, !worldsRows(worlds).isEmpty {
                     Section(worlds.title, isExpanded: expansion($worldsExpanded)) { ForEach(worldsRows(worlds)) { item in worldsRow(item) } }
                 }
-                Section("On This Mac") { ForEach(filtered.filter { $0.saved && !$0.isArchived }) { item in savedRow(item) } }
                 if filtered.contains(where: \.isArchived) {
                     Section("Archived", isExpanded: expansion($archivedExpanded)) { ForEach(filtered.filter(\.isArchived)) { item in savedRow(item) } }
                 }
