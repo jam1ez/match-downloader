@@ -11,6 +11,7 @@ struct WorkspaceView: View {
     @State private var removing: CatalogueEvent?
     @AppStorage("sidebar.archivedExpanded") private var archivedExpanded = false
     @AppStorage("sidebar.catalogueExpanded") private var catalogueExpanded = true
+    @AppStorage("sidebar.worldsExpanded") private var worldsExpanded = true
     @State private var visibility = NavigationSplitViewVisibility.automatic
     var body: some View {
         NavigationSplitView(columnVisibility: $visibility) {
@@ -18,6 +19,9 @@ struct WorkspaceView: View {
                 Section("Library") {
                     Label("Downloads", systemImage: "arrow.down.circle").badge(library.activeCount).tag("downloads")
                     Label("Clip from Link", systemImage: "scissors").tag("clip")
+                }
+                if let worlds = events.worlds, !worldsRows(worlds).isEmpty {
+                    Section(worlds.title, isExpanded: expansion($worldsExpanded)) { ForEach(worldsRows(worlds)) { item in worldsRow(item) } }
                 }
                 Section("On This Mac") { ForEach(filtered.filter { $0.saved && !$0.isArchived }) { item in savedRow(item) } }
                 if filtered.contains(where: \.isArchived) {
@@ -62,6 +66,20 @@ struct WorkspaceView: View {
     /// Collapsible sections stay open while searching so matches are never hidden.
     private func expansion(_ stored: Binding<Bool>) -> Binding<Bool> {
         Binding(get: { stored.wrappedValue || !sidebarSearch.isEmpty }, set: { stored.wrappedValue = $0 })
+    }
+    private func worldsRows(_ worlds: WorldsSeason) -> [WorldsEvent] {
+        worlds.events.filter { sidebarSearch.isEmpty || ($0.label + " " + worlds.title + " " + $0.sku).localizedCaseInsensitiveContains(sidebarSearch) }
+    }
+    /// A Worlds program: opens like any event; the context menu jumps to its channel on vexworlds.tv.
+    private func worldsRow(_ item: WorldsEvent) -> some View {
+        Label(item.label, systemImage: "globe.americas").tag(item.sku)
+            .contextMenu {
+                if let url = item.channelURL { Button("Open on vexworlds.tv", systemImage: "play.tv") { NSWorkspace.shared.open(url) } }
+                if item.saved == true {
+                    Divider()
+                    Button("Remove from This Mac…", systemImage: "trash", role: .destructive) { removing = CatalogueEvent(sku: item.sku, name: item.label, saved: true) }
+                }
+            }
     }
     /// A saved event: archive or remove it from this Mac with a swipe or right-click.
     private func savedRow(_ item: CatalogueEvent) -> some View {

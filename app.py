@@ -7,6 +7,7 @@ from urllib.parse import urlparse, parse_qs
 from urllib.request import Request, urlopen
 from events import Events, match_format
 from boundaries import analyze
+from worlds import season as worlds_season
 
 ROOT = Path(__file__).resolve().parent
 # MATCH_DOWNLOADER_DATA moves the library; SCOUTVAULT_DATA (the app's former name) still works.
@@ -258,9 +259,7 @@ def process_clip(id):
             if row and row['status']!='cancelled': update(id,status='failed',detail=str(e)[-1800:])
 
 def worker(id):
-    with LOCK:
-        if id in BUSY: return
-        BUSY.add(id);LASTPROG.pop(id,None)
+    """Runs one job. The queue loop has already claimed it in BUSY."""
     try: process_clip(id)
     finally:
         with LOCK: BUSY.discard(id)
@@ -279,11 +278,24 @@ def idle_exit_watch(server):
         if QUIT_WHEN_IDLE.is_set() and not active_jobs():
             server.shutdown(); return
 
-def queue_loop():
-    while True:
-        with db() as c: row=c.execute("SELECT id FROM clips WHERE status='queued' ORDER BY created LIMIT 1").fetchone()
-        if row: worker(row['id'])
-        else: time.sleep(.5)
+def parallel_limit():
+    try:return max(1,min(4,int(os.environ.get('MATCH_DOWNLOADER_PARALLEL','2'))))
+    except ValueError:return 2
+MAX_PARALLEL=parallel_limit()  # downloads running at the same time
+
+def queue_loop(stop=None):
+    while not (stop and stop.is_set()):
+        started=False
+        with LOCK: free=MAX_PARALLEL-len(BUSY)
+        if free>0:
+            with db() as c: rows=c.execute("SELECT id FROM clips WHERE status='queued' ORDER BY created LIMIT ?",(MAX_PARALLEL,)).fetchall()
+            for row in rows:
+                with LOCK:
+                    if len(BUSY)>=MAX_PARALLEL:break
+                    if row['id'] in BUSY:continue
+                    BUSY.add(row['id']);LASTPROG.pop(row['id'],None)
+                threading.Thread(target=worker,args=(row['id'],),daemon=True).start();started=True
+        if not started:time.sleep(.5)
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
@@ -388,6 +400,13 @@ class Handler(BaseHTTPRequestHandler):
                 saved_keys={e['sku'] for e in saved};known={e['sku'] for e in data['events']};archived=EVENTS.archived()
                 for e in data['events']:e['saved']=e['sku'] in saved_keys;e['custom']=False;e['archived']=e['sku'] in saved_keys and e['sku'] in archived
                 data['events'] += [dict(e,saved=True,custom=True,archived=e['sku'] in archived) for e in saved if e['sku'] not in known]
+                season=worlds_season()
+                if season:
+                    # Worlds events live in their own folder, not in the general lists.
+                    keys={e['sku'] for e in season['events']}
+                    data['events']=[e for e in data['events'] if e['sku'] not in keys]
+                    for e in season['events']:e['saved']=e['sku'] in saved_keys
+                    data['worlds']=season
                 return self.json(data)
             if path=='/api/events/archive':
                 return self.json(EVENTS.set_archived(body.get('sku',''),body.get('archived') is not False))

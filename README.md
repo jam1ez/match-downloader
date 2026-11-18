@@ -19,6 +19,7 @@ Needs macOS 26. Logs are in `library/desktop.log`. On Windows run `Start.bat`; o
 5. **Watch.** Open **Downloads** in the sidebar and press Space to play. Anything marked *Needs review* lets you adjust the start and end by hand.
 
 Other things you can do:
+- **Worlds** has its own folder in the sidebar (for example *Worlds 26*) with each program's event. Video positions come from the vexworlds.tv BoxCast channels. Right-click a program to open its channel on vexworlds.tv.
 - **Clip from Link** (File menu) saves a clip from any recording link.
 - **Recordings** (inspector) lets you add your own YouTube, Vimeo, BoxCast or MP4 link if the app didn't find one, or if an event has several.
 - **Archive or remove an event** (right-click or swipe it in the sidebar). Archive moves it to an Archived list and keeps everything. Remove deletes its saved schedule and recordings from this Mac; downloaded matches stay.
@@ -27,10 +28,20 @@ Other things you can do:
 ## Good to know
 
 - Schedules you've opened stay on your Mac and work offline. Loading events, previewing and downloading need internet.
-- Saved videos are in `library/`. Back up that whole folder. Set `MATCH_DOWNLOADER_DATA` to move it.
+- Two downloads run at once (`MATCH_DOWNLOADER_PARALLEL` sets 1 to 4). Saved videos are in `library/`. Back up that whole folder. Set `MATCH_DOWNLOADER_DATA` to move it.
 - Video positions are estimates. Preview a match before downloading.
 - No logins, DRM or paywalled videos. Only download recordings you're allowed to.
 - The app only listens on your own Mac (127.0.0.1).
+
+## Next Worlds
+
+The Worlds folder is set by `worlds-season.json` (year and folder name), with each year's events and channels in `worlds.json`. There is no setting for it in the app. To move to a new Worlds, once its events are on RobotEvents:
+
+```
+python3 tools/new_worlds_season.py 2027 "Worlds 27"
+```
+
+It looks up the events, copies last year's channels, writes both files, and tells you if a channel or division needs a manual fix. Restart the app afterwards.
 
 ## Build and test
 

@@ -9,6 +9,14 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 TMP=tempfile.TemporaryDirectory(); os.environ['SCOUTVAULT_DATA']=TMP.name+'/library'
 spec=importlib.util.spec_from_file_location('vault',Path(__file__).resolve().parents[1]/'app.py'); app=importlib.util.module_from_spec(spec); spec.loader.exec_module(app)
 app.RETRY_DELAYS=(0,0)
+from contextlib import contextmanager
+@contextmanager
+def patch_env(value):
+    old=os.environ.get('MATCH_DOWNLOADER_PARALLEL');os.environ['MATCH_DOWNLOADER_PARALLEL']=value
+    try:yield
+    finally:
+        if old is None:os.environ.pop('MATCH_DOWNLOADER_PARALLEL',None)
+        else:os.environ['MATCH_DOWNLOADER_PARALLEL']=old
 class Quiet(SimpleHTTPRequestHandler):
     def log_message(self,*args): pass
 class Tests(unittest.TestCase):
@@ -148,6 +156,50 @@ class Tests(unittest.TestCase):
         self.assertEqual(app.job_progress(row)['fraction'],0.865)
         add('frame=4 time=00:00:05.00 speed=9x\r')                           # a glitch must not move the bar back
         self.assertEqual(app.job_progress(row)['fraction'],0.865)
+    def test_queue_runs_two_jobs_at_once_and_no_more(self):
+        import time
+        from unittest.mock import patch
+        ids=['par1','par2','par3','par4']
+        with app.db() as c:
+            for n,i in enumerate(ids):c.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES(?,?,?,?,?,?,?,?,?)",(i,'t','u',0,1,'','queued','',100+n))
+        lock=threading.Lock();state={'now':0,'peak':0,'done':[]}
+        def fake(id):
+            with lock:state['now']+=1;state['peak']=max(state['peak'],state['now'])
+            time.sleep(0.4)
+            app.update(id,status='ready')
+            with lock:state['now']-=1;state['done'].append(id)
+        stop=threading.Event()
+        with patch.object(app,'process_clip',fake),patch.object(app,'MAX_PARALLEL',2):
+            thread=threading.Thread(target=app.queue_loop,args=(stop,),daemon=True);thread.start()
+            deadline=time.time()+10
+            while len(state['done'])<4 and time.time()<deadline:time.sleep(0.05)
+            stop.set();thread.join(3)
+        self.assertEqual(sorted(state['done']),sorted(ids));self.assertEqual(state['peak'],2)
+        self.assertEqual(state['done'][:2].count('par3')+state['done'][:2].count('par4'),0)  # oldest first
+    def test_parallel_limit_setting(self):
+        for value,expected in (('1',1),('3',3),('9',4),('0',1),('abc',2)):
+            with patch_env(value):self.assertEqual(app.parallel_limit(),expected)
+    def test_worlds_folder_follows_season_file_and_leaves_the_general_lists(self):
+        import worlds
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            (root/'worlds.json').write_text(json.dumps({'2027':{
+                'V5RC MS':{'channelId':'chan2','sku':'RE-V5RC-27-0002','eventStart':'2027-04-25','eventEnd':'2027-04-27','divisions':['Arts'],'numDays':3,'broadcastOverrides':{}},
+                'V5RC HS':{'channelId':'chan1','sku':'RE-V5RC-27-0001','eventStart':'2027-04-21','eventEnd':'2027-04-24','divisions':['Arts'],'numDays':4,'broadcastOverrides':{}},
+                'VURC':{'channelId':'chan3','sku':None,'eventStart':'2027-04-25','eventEnd':'2027-04-27','divisions':['Arts'],'numDays':3,'broadcastOverrides':{}}}}))
+            (root/'worlds-season.json').write_text(json.dumps({'year':'2027','title':'Worlds 27'}))
+            app.EVENTS.write('catalogue',[{'sku':'RE-V5RC-27-0001','name':'Worlds HS','divisions':{}},{'sku':'VE-V5-27-9','name':'Regional','divisions':{}}])
+            with patch.object(worlds,'ROOT',root):
+                season=worlds.season()
+                data=self.post('/api/events/catalogue',{})
+            self.assertEqual(season['title'],'Worlds 27')
+            self.assertEqual([e['label'] for e in season['events']],['V5RC High School','V5RC Middle School'])  # in event order; no SKU, no entry
+            self.assertEqual(data['worlds']['year'],'2027')
+            self.assertNotIn('RE-V5RC-27-0001',{e['sku'] for e in data['events']})
+            self.assertIn('VE-V5-27-9',{e['sku'] for e in data['events']})
+            (root/'worlds-season.json').write_text(json.dumps({'year':'2099'}))
+            with patch.object(worlds,'ROOT',root):self.assertIsNone(worlds.season())  # a year with no config shows no folder
     def test_library_reports_progress_for_active_jobs_only(self):
         with app.db() as c:
             c.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES('prog2','t','u',0,10,'','downloading','',1)")
