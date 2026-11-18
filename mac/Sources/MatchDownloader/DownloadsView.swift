@@ -42,7 +42,7 @@ struct DownloadsView: View {
                 TableColumn("Division", value: \.divisionLabel).width(min: 80, ideal: 110).customizationID("division")
                 TableColumn("Event", value: \.eventLabel).width(min: 140, ideal: 240).customizationID("event")
                 TableColumn("Status", value: \.statusLabel) { clip in
-                    HStack { if clip.isActive { ProgressView().controlSize(.small) }; Text(Labels.status(clip.status)) }
+                    StatusCell(clip: clip)
                 }.width(min: 100, ideal: 150).customizationID("status")
                 TableColumn("Part of Recording") { Text($0.recordingRange).monospacedDigit() }.customizationID("range")
                 TableColumn("Size", value: \.bytes) { Text(Format.size(Int64($0.bytes))).monospacedDigit() }.customizationID("size")
@@ -153,6 +153,7 @@ struct DownloadInspector: View {
             VStack(alignment: .leading, spacing: 20) {
                 InspectorHeading(title: clip.matchLabel + (clip.divisionLabel.isEmpty ? "" : ", " + clip.divisionLabel), subtitle: clip.eventLabel)
                 InspectorFacts([("Status", Labels.status(clip.status)), ("Length", Format.clock(clip.end - clip.start)), ("Size", Format.size(Int64(clip.bytes)))])
+                InspectorProgress(clip: clip)
                 if clip.status == "failed" { Text(Labels.failure(clip.detail)).foregroundStyle(.red).textSelection(.enabled) }
                 else if let detail = clip.detail, !detail.isEmpty { Text(detail).foregroundStyle(.secondary).textSelection(.enabled) }
                 HStack {

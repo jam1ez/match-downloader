@@ -121,6 +121,39 @@ class Tests(unittest.TestCase):
             finally:app._ENCODERS=saved
     def test_video_encoders_always_end_with_software(self):
         self.assertIn('libx264',app.video_encoders()[-1])
+    def test_job_progress_reads_only_the_running_step(self):
+        folder=app.DATA/'prog1';folder.mkdir(exist_ok=True)
+        log=folder/'job.log'
+        log.write_text('frame=1 time=00:02:00.00 speed=2x\r')  # an earlier, finished step
+        app.LOGPOS['prog1']=log.stat().st_size
+        row={'id':'prog1','status':'downloading','clip_mode':'fixed','start':0,'end':120,'detail':'','detect_settings':'','source_start':0}
+        self.assertEqual(app.job_progress(row),{'fraction':None,'eta':None})  # new step hasn't reported yet
+        with open(log,'a') as f:f.write('frame=9 time=00:00:30.00 bitrate=1k speed=1.5x\rframe=10 time=00:00:60.00 bitrate=1k speed=1.5x\r')
+        self.assertEqual(app.job_progress(row),{'fraction':0.5,'eta':40})
+        self.assertIsNone(app.job_progress(dict(row,status='analyzing')))
+        app.LASTPROG.pop('prog1',None)
+        dynamic=dict(row,clip_mode='dynamic',source_start=100,detect_settings=json.dumps({'anchor':190,'window':480}))
+        self.assertEqual(app.job_progress(dynamic)['fraction'],round(60/570,4))
+    def test_job_progress_combines_video_and_audio_passes_and_never_goes_backwards(self):
+        folder=app.DATA/'prog4';folder.mkdir(exist_ok=True);log=folder/'job.log'
+        log.write_text('');app.LOGPOS['prog4']=0;app.LASTPROG.pop('prog4',None)
+        row={'id':'prog4','status':'downloading','clip_mode':'fixed','start':0,'end':100,'detail':'','detect_settings':'','source_start':0}
+        def add(text):
+            with open(log,'a') as f:f.write(text)
+        add('[info] x: Downloading 2 format(s): 136+140\nframe=1 time=00:00:50.00 speed=1x\r')
+        self.assertEqual(app.job_progress(row)['fraction'],0.425)            # half of the video pass
+        add('frame=2 time=00:01:40.00 speed=1x\r')
+        self.assertEqual(app.job_progress(row)['fraction'],0.85)             # video done
+        add('frame=3 time=00:00:10.00 speed=9x\r')                           # the audio pass counts from zero again
+        self.assertEqual(app.job_progress(row)['fraction'],0.865)
+        add('frame=4 time=00:00:05.00 speed=9x\r')                           # a glitch must not move the bar back
+        self.assertEqual(app.job_progress(row)['fraction'],0.865)
+    def test_library_reports_progress_for_active_jobs_only(self):
+        with app.db() as c:
+            c.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES('prog2','t','u',0,10,'','downloading','',1)")
+            c.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES('prog3','t','u',0,10,'','ready','',2)")
+        with urlopen(Request(self.base+'/api/library')) as r:clips={x['id']:x for x in json.load(r)['clips']}
+        self.assertIn('progress',clips['prog2']);self.assertNotIn('progress',clips['prog3'])
     def test_token_env_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             env=dict(os.environ,MATCH_DOWNLOADER_DATA=tmp,MATCH_DOWNLOADER_TOKEN='fixed-test-token')
