@@ -268,8 +268,8 @@ struct ClipRangeSlider: View {
     let baseStart: Double   // seconds from the match start where the clip would start with no adjustment
     let baseEnd: Double
     private let step = 5.0
-    private let startLimits = -60.0...60.0
-    private let endLimits = -60.0...120.0
+    var startLimits: ClosedRange<Double> = -60...60
+    var endLimits: ClosedRange<Double> = -60...120
     private enum Edge: Hashable { case start, end }
     @FocusState private var focus: Edge?
     @State private var dragging: Edge?

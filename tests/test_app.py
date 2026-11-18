@@ -17,6 +17,8 @@ def patch_env(value):
     finally:
         if old is None:os.environ.pop('MATCH_DOWNLOADER_PARALLEL',None)
         else:os.environ['MATCH_DOWNLOADER_PARALLEL']=old
+def uuid_hex():
+    import uuid;return uuid.uuid4().hex
 class Quiet(SimpleHTTPRequestHandler):
     def log_message(self,*args): pass
 class Tests(unittest.TestCase):
@@ -219,6 +221,61 @@ class Tests(unittest.TestCase):
         self.post('/api/events/queue',{'sku':sku,'keys':['1:3'],'mode':'dynamic','startAdjust':50,'endAdjust':50})
         with app.db() as c:r=c.execute("SELECT start,end FROM clips WHERE match_ref='1:3' AND event_ref=?",(sku,)).fetchone()
         self.assertEqual((r['start'],r['end']),(2995,3175))
+    def _ready_clip(self,tmp,seconds_long=20):
+        id=uuid_hex();folder=app.DATA/id;folder.mkdir(parents=True,exist_ok=True)
+        src=Path(tmp)/'src.mp4'
+        subprocess.run(['ffmpeg','-y','-loglevel','error','-f','lavfi','-i','testsrc=size=320x180:rate=15','-f','lavfi','-i','sine','-t','60','-pix_fmt','yuv420p',str(src)],check=True)
+        # the saved clip is seconds 10..10+seconds_long of a 60 s recording
+        subprocess.run(['ffmpeg','-y','-loglevel','error','-ss','10','-i',str(src),'-t',str(seconds_long),'-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac',str(folder/'clip.mp4')],check=True)
+        with app.db() as c:c.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created,clip_mode,detect_settings) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(id,'t',src.as_uri() if False else 'http://127.0.0.1:1/x.mp4',10,10+seconds_long,'','ready','Saved',1,'fixed',None))
+        return id,folder
+    def _duration(self,path):
+        return float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',str(path)],text=True))
+    def test_adjust_trims_a_saved_clip_without_downloading(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            id,folder=self._ready_clip(tmp)
+            r=self.post(f'/api/clips/{id}/adjust',{'start':14,'end':26})
+            self.assertTrue(r['ok'])
+            with app.db() as c:row=dict(c.execute('SELECT * FROM clips WHERE id=?',(id,)).fetchone())
+            self.assertEqual((row['status'],row['clip_mode'],row['start'],row['end']),('queued','adjust',14,26))
+            app.worker(id)
+            with app.db() as c:row=dict(c.execute('SELECT * FROM clips WHERE id=?',(id,)).fetchone())
+            self.assertEqual((row['status'],row['start'],row['end'],row['clip_mode']),('ready',14,26,'fixed'))
+            self.assertAlmostEqual(self._duration(folder/'clip.mp4'),12,delta=0.6)
+    def test_adjust_extension_failure_keeps_the_saved_clip(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            id,folder=self._ready_clip(tmp)
+            before=(folder/'clip.mp4').read_bytes()
+            self.post(f'/api/clips/{id}/adjust',{'start':5,'end':40})
+            with patch.object(app,'run',side_effect=RuntimeError('ERROR: unable to download')),patch.object(app,'RETRY_DELAYS',()):app.worker(id)
+            with app.db() as c:row=dict(c.execute('SELECT * FROM clips WHERE id=?',(id,)).fetchone())
+            self.assertEqual((row['status'],row['start'],row['end'],row['clip_mode']),('ready',10,30,'fixed'))
+            self.assertIn('unchanged',row['detail']);self.assertEqual((folder/'clip.mp4').read_bytes(),before)
+    def test_adjust_extension_downloads_the_wider_range(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            id,folder=self._ready_clip(tmp)
+            wide=Path(tmp)/'wide.mp4'
+            subprocess.run(['ffmpeg','-y','-loglevel','error','-f','lavfi','-i','testsrc=size=320x180:rate=15','-f','lavfi','-i','sine','-t','35','-pix_fmt','yuv420p',str(wide)],check=True)
+            seen={}
+            def fake_run(job,args):
+                if 'yt_dlp' in args:seen['section']=[a for a in args if a.startswith('*')];shutil.copy(wide,folder/'source.mp4')
+                else:subprocess.run(args,check=True,capture_output=True)
+            self.post(f'/api/clips/{id}/adjust',{'start':5,'end':40})
+            with patch.object(app,'run',side_effect=fake_run):app.worker(id)
+            with app.db() as c:row=dict(c.execute('SELECT * FROM clips WHERE id=?',(id,)).fetchone())
+            self.assertEqual((row['status'],row['start'],row['end']),('ready',5,40));self.assertEqual(seen['section'],['*5.0-40.0'])
+            self.assertAlmostEqual(self._duration(folder/'clip.mp4'),35,delta=0.8)
+    def test_adjust_rejects_bad_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            id,folder=self._ready_clip(tmp)
+            for body in ({'start':12,'end':14},{'start':10,'end':30},{'start':-1000,'end':30},{'start':10,'end':700},{'start':'x','end':20}):
+                with self.assertRaises(HTTPError) as e:self.post(f'/api/clips/{id}/adjust',body)
+                self.assertEqual(e.exception.code,400,body)
+            with app.db() as c:c.execute("UPDATE clips SET status='failed' WHERE id=?",(id,))
+            with self.assertRaises(HTTPError) as e:self.post(f'/api/clips/{id}/adjust',{'start':12,'end':25})
+            self.assertEqual(e.exception.code,400)
     def test_library_reports_progress_for_active_jobs_only(self):
         with app.db() as c:
             c.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES('prog2','t','u',0,10,'','downloading','',1)")

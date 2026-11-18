@@ -128,6 +128,11 @@ public struct APIClient: Sendable {
         try await clipAction(clipID, "bounds", ["start": start, "end": end])
     }
 
+    /// Trims or extends a saved clip to a new range of its recording (seconds). Extending downloads the footage again.
+    public func adjustClip(clipID: String, start: Double, end: Double) async throws {
+        try await clipAction(clipID, "adjust", ["start": String(start), "end": String(end)])
+    }
+
     // MARK: Plumbing
 
     private struct Body: Encodable {

@@ -16,7 +16,7 @@ Needs macOS 26. Logs are in `library/desktop.log`. On Windows run `Start.bat`; o
 2. **Select matches.** Click rows, or search for labels like `q67`, `Q60-Q70` or `qf1-1, sf2-1`. Use the filters to narrow the schedule.
 3. **Check the video.** Press Space to preview the recording at the match. If a video can't play inside the app, use **Open in Browser** to watch it at the right time.
 4. **Download.** Click **Download…**. By default (Quick Download) it saves a fixed-length clip from the official match time; one slider with two thumbs moves the clip's start and end (drag either thumb; the thin mark is the official match start). Turn Quick Download off and the app searches for the match's start and end instead.
-5. **Watch.** Open **Downloads** in the sidebar and press Space to play. Anything marked *Needs review* lets you adjust the start and end by hand.
+5. **Watch and adjust.** Open **Downloads** in the sidebar and press Space to play. Anything marked *Needs review* lets you adjust the start and end by hand. For a saved video, **Adjust Length…** (right-click, or the inspector) trims it on this Mac or extends it before or after by downloading the extra footage.
 
 Other things you can do:
 - **Worlds** has its own folder in the sidebar (for example *Worlds 26*) with each program's event. Video positions come from the vexworlds.tv BoxCast channels. Right-click a program to open its channel on vexworlds.tv.
