@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="token" content="__TOKEN__">
+<title>Match Downloader</title>
+<link rel="stylesheet" href="/next/app.css">
+</head>
+<body>
+<header class="top">
+  <a class="wordmark" href="#/matches">Match Downloader</a>
+  <nav class="tabs" aria-label="Sections">
+    <a href="#/matches" data-view="matches">Matches</a>
+    <a href="#/library" data-view="library">Library <span id="libCount" class="count"></span></a>
+    <a href="#/clip" data-view="clip">Clip from a link</a>
+  </nav>
+  <p id="sysStatus" class="sys" role="status"></p>
+</header>
+<p id="banner" class="banner" role="alert" hidden></p>
+
+<main>
+<!-- Matches -->
+<section id="view-matches" class="matches" aria-label="Matches">
+  <aside class="rail" aria-label="Events">
+    <div class="rail-head">
+      <label class="sr" for="eventFilter">Find an event</label>
+      <input id="eventFilter" type="search" placeholder="Find an event" autocomplete="off">
+      <div class="rail-tools">
+        <label class="sr" for="eventScope">Which events</label>
+        <select id="eventScope">
+          <option value="all">All events</option>
+          <option value="saved">Saved on this laptop</option>
+          <option value="presets">With video positions</option>
+        </select>
+        <button id="refreshCatalogue" type="button" class="quiet" title="Download the latest event list">Update</button>
+      </div>
+    </div>
+    <ul id="eventList" class="event-list" aria-label="Event list"></ul>
+    <form id="addEventForm" class="rail-foot">
+      <label for="addEventInput">Add an event</label>
+      <div class="inline">
+        <input id="addEventInput" placeholder="Event code or link" required autocomplete="off">
+        <button>Add</button>
+      </div>
+      <p class="rail-meta"><button type="button" id="openBulk" class="text">Add several at once</button><span id="catalogueStatus"></span></p>
+    </form>
+  </aside>
+
+  <div class="event" id="eventPane">
+    <button type="button" id="pickEvent" class="pick-event">Choose an event</button>
+    <div id="eventEmpty" class="empty">
+      <h1>Choose an event</h1>
+      <p>Pick an event on the left, or add one by its code (for example VE-V5-26-65786) or its VEX Events link. Loaded schedules stay on this laptop.</p>
+    </div>
+    <div id="eventBody" hidden>
+      <header class="event-head">
+        <div class="event-title">
+          <h1 id="eventName"></h1>
+          <dl id="eventFacts" class="facts"></dl>
+        </div>
+        <div class="event-actions">
+          <button id="openRecordings" type="button">Recordings <span id="recCount" class="count"></span></button>
+          <button id="refreshEvent" type="button">Refresh schedule</button>
+        </div>
+      </header>
+      <p id="eventNote" class="note" role="status"></p>
+
+      <div class="filters">
+        <div class="field"><label for="fDivision">Division</label><select id="fDivision"></select></div>
+        <div class="field"><label for="fRound">Round</label>
+          <select id="fRound">
+            <option value="all">All rounds</option><option value="Q">Qualifications</option><option value="R16">Round of 16</option>
+            <option value="QF">Quarterfinals</option><option value="SF">Semifinals</option><option value="F">Finals</option><option value="P">Practice</option>
+          </select></div>
+        <div class="field"><label for="fDay">Day</label><select id="fDay"></select></div>
+        <form id="queryForm" class="field query">
+          <label for="fQuery">Matches or teams</label>
+          <div class="inline">
+            <input id="fQuery" type="search" placeholder="Q67, QF1-1, Q60-Q70 or 1234A" autocomplete="off">
+            <button id="selectQuery">Select shown</button>
+          </div>
+        </form>
+        <label class="check video-only"><input type="checkbox" id="fVideo"> Video only</label>
+      </div>
+
+      <div class="table-wrap" id="tableWrap">
+        <table class="schedule">
+          <caption class="sr">Match schedule</caption>
+          <thead><tr>
+            <th class="c-check"><input type="checkbox" id="selectAll" aria-label="Select every timed match shown"></th>
+            <th class="c-match" scope="col">Match</th>
+            <th class="c-div" scope="col">Division</th>
+            <th class="c-red" scope="col">Red alliance</th>
+            <th class="c-blue" scope="col">Blue alliance</th>
+            <th class="c-video" scope="col">Video</th>
+            <th class="c-act" scope="col"><span class="sr">Actions</span></th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <p id="shownCount" class="table-foot"></p>
+      </div>
+
+      <form id="tray" class="tray" aria-label="Download selected matches">
+        <div class="tray-count"><strong id="selCount">None selected</strong><button type="button" id="clearSel" class="text" hidden>Clear</button></div>
+        <fieldset class="trim">
+          <legend class="sr">Clip boundaries</legend>
+          <div class="segmented" role="radiogroup" aria-label="Clip boundaries">
+            <label><input type="radio" name="trim" value="dynamic" checked><span>Find start and end</span></label>
+            <label><input type="radio" name="trim" value="fixed"><span>Fixed length</span></label>
+          </div>
+        </fieldset>
+        <div class="tray-fields">
+          <div class="mini" data-mode="dynamic"><label for="tWindow">Search window</label><select id="tWindow"><option value="480">8 min</option><option value="720">12 min</option><option value="1200">20 min</option></select></div>
+          <div class="mini" data-mode="fixed" hidden><label for="tLength">Length (s)</label><input id="tLength" type="number" min="1" max="3600" value="180"></div>
+          <div class="mini"><label for="tBefore">Before (s)</label><input id="tBefore" type="number" min="0" max="60" value="5"></div>
+          <div class="mini" data-mode="dynamic"><label for="tAfter">After (s)</label><input id="tAfter" type="number" min="0" max="60" value="5"></div>
+          <div class="mini"><label for="tShift">Shift (s)</label><input id="tShift" type="number" min="-3600" max="3600" value="0" title="Moves every video position. Positive is later."></div>
+        </div>
+        <button type="button" id="trayOptions" class="tray-toggle" aria-expanded="false" aria-controls="tray">Options</button>
+        <button id="download" class="primary" disabled>Download</button>
+        <p id="trayHint" class="tray-hint"></p>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- Library -->
+<section id="view-library" class="library" aria-label="Library" hidden>
+  <div class="lib-head">
+    <h1>Library</h1>
+    <div class="segmented" id="libFilter" role="radiogroup" aria-label="Show">
+      <label><input type="radio" name="lib" value="all" checked><span>All <i data-n="all"></i></span></label>
+      <label><input type="radio" name="lib" value="ready"><span>Saved <i data-n="ready"></i></span></label>
+      <label><input type="radio" name="lib" value="active"><span>In progress <i data-n="active"></i></span></label>
+      <label><input type="radio" name="lib" value="needs_review"><span>Needs review <i data-n="needs_review"></i></span></label>
+      <label><input type="radio" name="lib" value="failed"><span>Failed <i data-n="failed"></i></span></label>
+    </div>
+    <label class="sr" for="libSearch">Search the library</label>
+    <input id="libSearch" type="search" placeholder="Search titles, teams and notes">
+  </div>
+  <ul id="clips" class="clips" aria-label="Downloaded and queued matches"></ul>
+  <p id="storage" class="storage"></p>
+</section>
+
+<!-- Clip from a link -->
+<section id="view-clip" class="clip-view" aria-label="Clip from a link" hidden>
+  <h1>Clip from a link</h1>
+  <p class="lede">For recordings that aren't tied to an event schedule. Positions are times in the recording, not the time of day.</p>
+  <form id="clipForm" class="stack">
+    <div class="field"><label for="cTitle">Name</label><input id="cTitle" required maxlength="200" placeholder="Worlds Arts Q42"></div>
+    <div class="field"><label for="cUrl">Recording link</label><input id="cUrl" type="url" required placeholder="YouTube, Vimeo, BoxCast, MP4 or HLS"></div>
+    <div class="row2">
+      <div class="field"><label for="cStart">Start</label><input id="cStart" required value="00:00:00" inputmode="numeric"></div>
+      <div class="field"><label for="cEnd">End</label><input id="cEnd" required placeholder="00:03:00" inputmode="numeric"></div>
+    </div>
+    <div class="field"><label for="cNotes">Notes</label><textarea id="cNotes" rows="3" placeholder="Teams, score, what to watch for"></textarea></div>
+    <p id="clipError" class="error" role="alert"></p>
+    <div><button class="primary">Add to downloads</button></div>
+  </form>
+  <section class="import" aria-labelledby="importTitle">
+    <h2 id="importTitle">Import a list</h2>
+    <p>Choose a JSON file with an array of <code>{"title", "url", "start", "end", "notes"}</code> entries. <code>example-matches.json</code> in the app folder shows the format.</p>
+    <input id="importFile" type="file" accept="application/json,.json">
+    <div id="importList"></div>
+    <button id="importQueue" type="button" class="primary" hidden>Add selected to downloads</button>
+  </section>
+</section>
+</main>
+
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+<!-- Dialogs -->
+<dialog id="dlgEvents" class="sheet left" aria-labelledby="dlgEventsTitle">
+  <div class="dlg-head"><h2 id="dlgEventsTitle">Events</h2><button type="button" data-close>Close</button></div>
+  <div id="eventsSheetBody"></div>
+</dialog>
+
+<dialog id="dlgBulk" aria-labelledby="dlgBulkTitle">
+  <form method="dialog" id="bulkForm">
+    <div class="dlg-head"><h2 id="dlgBulkTitle">Add several events</h2><button type="button" data-close>Close</button></div>
+    <label for="bulkInput">One event code or link per line</label>
+    <textarea id="bulkInput" rows="8"></textarea>
+    <p id="bulkStatus" class="meta" role="status"></p>
+    <div class="dlg-foot"><button id="bulkGo" class="primary" type="button">Add events</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgPreview" class="wide" aria-labelledby="previewTitle">
+  <div class="dlg-head"><h2 id="previewTitle">Preview</h2><button type="button" data-close>Close</button></div>
+  <div id="previewFrame" class="player"></div>
+  <div class="player-bar">
+    <p id="previewState" class="meta" role="status"></p>
+    <div class="actions"><button type="button" id="previewJump" disabled>Go to match start</button><a id="previewOriginal" class="button" target="_blank" rel="noopener noreferrer">Open original</a></div>
+  </div>
+</dialog>
+
+<dialog id="dlgTiming" aria-labelledby="timingTitle">
+  <form id="timingForm">
+    <div class="dlg-head"><h2 id="timingTitle">Video position</h2><button type="button" data-close>Close</button></div>
+    <p class="meta">Where this match starts in its recording. Works with any supported link.</p>
+    <div class="field"><label for="timingUrl">Recording link</label><input id="timingUrl" type="url" required></div>
+    <div class="field"><label for="timingAt">Match starts at</label><input id="timingAt" required placeholder="01:24:10"></div>
+    <p id="timingError" class="error" role="alert"></p>
+    <div class="dlg-foot"><button class="primary">Save position</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgRecordings" class="sheet right" aria-labelledby="recTitle">
+  <div class="dlg-head"><h2 id="recTitle">Recordings</h2><button type="button" data-close>Close</button></div>
+  <p id="recIntro" class="meta">Each recording covers a day, a division or part of a day. Match positions are worked out from the official match times.</p>
+  <div class="actions"><button type="button" id="recAdd" class="primary">Add recording</button><button type="button" id="recAuto">Find positions again</button><button type="button" id="recDiscover">Check event page</button></div>
+  <p id="recAutoStatus" class="status-line" role="status"></p>
+  <h3>On this laptop</h3>
+  <ul id="recList" class="rec-list"></ul>
+  <h3>Links on the event page</h3>
+  <p id="recDiscovery" class="meta" role="status"></p>
+  <ul id="recCandidates" class="rec-list"></ul>
+</dialog>
+
+<dialog id="dlgEditor" class="wide" aria-labelledby="editorTitle">
+  <form id="editorForm">
+    <div class="dlg-head"><h2 id="editorTitle">Add recording</h2><button type="button" data-close>Close</button></div>
+    <input type="hidden" id="eId">
+    <fieldset>
+      <legend>Recording</legend>
+      <div class="field"><label for="eUrl">Link</label>
+        <div class="inline"><input id="eUrl" type="url" required placeholder="YouTube, Vimeo, BoxCast, MP4 or HLS"><button type="button" id="eProbe">Read details</button></div></div>
+      <p id="eInfo" class="meta" role="status"></p>
+      <div id="eChannel" class="field" hidden><label for="eChannelPick">This link is a channel or playlist. Choose a recording</label>
+        <div class="inline"><select id="eChannelPick"></select><button type="button" id="eChannelUse">Use</button></div></div>
+      <div class="field"><label for="eLabel">Name</label><input id="eLabel" placeholder="Day 1 morning, Field 2"></div>
+    </fieldset>
+    <fieldset>
+      <legend>What it covers</legend>
+      <div class="row4">
+        <div class="field"><label for="eDay">Day</label><input id="eDay" type="date" required list="eDays"><datalist id="eDays"></datalist></div>
+        <div class="field"><label for="eDivision">Division</label><select id="eDivision"></select></div>
+        <div class="field"><label for="eField">Field</label><select id="eField"></select></div>
+        <div class="field"><label for="eBasis">Match times</label><select id="eBasis"><option value="actual">Actual start</option><option value="scheduled">Scheduled start</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="eFirst">First match in it</label><select id="eFirst"></select></div>
+        <div class="field"><label for="eLast">Last match in it</label><select id="eLast"></select></div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Line it up with the schedule</legend>
+      <div class="choices" role="radiogroup" aria-label="How to line up the recording">
+        <label><input type="radio" name="sync" value="auto" checked><span><b>Broadcast start time</b> Read automatically from the live stream.</span></label>
+        <label><input type="radio" name="sync" value="anchor"><span><b>A match I can see</b> Pick a match and where it starts in the recording.</span></label>
+        <label><input type="radio" name="sync" value="wallclock"><span><b>Known start time</b> Date and time the recording began, with time zone.</span></label>
+        <label><input type="radio" name="sync" value="none"><span><b>Later</b> Save the link without positions.</span></label>
+      </div>
+      <div id="eAnchorFields" class="row2" hidden>
+        <div class="field"><label for="eAnchor">Match</label><select id="eAnchor"></select></div>
+        <div class="field"><label for="ePosition">It starts at</label><div class="inline"><input id="ePosition" placeholder="00:32:10"><button type="button" id="eCapture" disabled>Use player time</button></div></div>
+      </div>
+      <div id="eWallFields" hidden>
+        <div class="field"><label for="eWall">Recording began at</label><div class="inline"><input id="eWall" placeholder="2026-11-14T09:00:00-08:00"><button type="button" id="eUseDetected" disabled>Use detected time</button></div></div>
+        <p class="meta">Check it against one match. Edited uploads can be offset.</p>
+      </div>
+      <div><button type="button" id="eLoadPlayer">Open player to find a match</button></div>
+      <div id="ePlayerWrap" hidden>
+        <div id="ePlayer" class="player"></div>
+        <div class="player-bar"><p id="ePlayerState" class="meta" role="status"></p><div class="actions"><button type="button" id="eBack">Back 10 s</button><button type="button" id="eFwd">Forward 10 s</button></div></div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Fine-tune</legend>
+      <div class="row2">
+        <div class="field"><label for="eOffset">Shift (s, positive is later)</label><input id="eOffset" type="number" min="-3600" max="3600" value="0"></div>
+        <div class="field"><label for="eDuration">Recording length (s, optional)</label><input id="eDuration" type="number" min="1"></div>
+      </div>
+      <label class="check"><input id="eEnabled" type="checkbox" checked> Use this recording for match positions</label>
+      <label class="check"><input id="eFillOnly" type="checkbox"> Only fill matches that have no position yet</label>
+    </fieldset>
+    <p id="eError" class="error" role="alert"></p>
+    <div class="dlg-foot"><button class="primary" id="eSave">Save recording</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgBounds" class="wide" aria-labelledby="boundsTitle">
+  <form id="boundsForm">
+    <div class="dlg-head"><h2 id="boundsTitle">Check match start and end</h2><button type="button" data-close>Close</button></div>
+    <p id="boundsReason" class="meta"></p>
+    <video id="boundsVideo" controls playsinline></video>
+    <div class="row2">
+      <div class="field"><label for="bStart">Start</label><div class="inline"><input id="bStart" required><button type="button" id="bMarkStart">Set to current time</button></div></div>
+      <div class="field"><label for="bEnd">End</label><div class="inline"><input id="bEnd" required><button type="button" id="bMarkEnd">Set to current time</button></div></div>
+    </div>
+    <p id="boundsOrigin" class="meta"></p>
+    <p id="boundsError" class="error" role="alert"></p>
+    <div class="dlg-foot"><button class="primary">Save clip</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgPlayer" class="wide" aria-labelledby="playerTitle">
+  <div class="dlg-head"><h2 id="playerTitle"></h2><button type="button" data-close>Close</button></div>
+  <video id="playerVideo" controls playsinline></video>
+  <p id="playerNotes" class="meta"></p>
+</dialog>
+
+<dialog id="dlgNotes" aria-labelledby="notesTitle">
+  <form id="notesForm">
+    <div class="dlg-head"><h2 id="notesTitle">Notes</h2><button type="button" data-close>Close</button></div>
+    <label class="sr" for="notesText">Notes</label>
+    <textarea id="notesText" rows="6"></textarea>
+    <div class="dlg-foot"><button class="primary">Save notes</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgConfirm" aria-labelledby="confirmTitle">
+  <form method="dialog">
+    <h2 id="confirmTitle"></h2>
+    <p id="confirmBody" class="meta"></p>
+    <div class="dlg-foot"><button value="cancel" type="submit">Cancel</button><button value="ok" id="confirmOk" class="danger" type="submit"></button></div>
+  </form>
+</dialog>
+
+<script type="module" src="/next/app.js"></script>
+</body>
+</html>
