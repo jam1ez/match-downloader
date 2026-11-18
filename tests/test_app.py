@@ -200,6 +200,25 @@ class Tests(unittest.TestCase):
             self.assertIn('VE-V5-27-9',{e['sku'] for e in data['events']})
             (root/'worlds-season.json').write_text(json.dumps({'year':'2099'}))
             with patch.object(worlds,'ROOT',root):self.assertIsNone(worlds.season())  # a year with no config shows no folder
+    def test_quick_download_start_and_end_adjustments(self):
+        sku='VE-V5-26-00077'
+        app.EVENTS.write(sku,{'sku':sku,'name':'Adjust test','divisions':[],'matches':[
+            {'key':'1:1','label':'Q1','available':True,'url':'http://127.0.0.1:9/a.mp4','timestamp':1000,'division':'Main','teams':[],'timing':'T','alliances':[]},
+            {'key':'1:2','label':'Q2','available':True,'url':'http://127.0.0.1:9/a.mp4','timestamp':2000,'division':'Main','teams':[],'timing':'T','alliances':[]},
+            {'key':'1:3','label':'Q3','available':True,'url':'http://127.0.0.1:9/a.mp4','timestamp':3000,'division':'Main','teams':[],'timing':'T','alliances':[]}]})
+        def times(key,**extra):
+            self.post('/api/events/queue',dict({'sku':sku,'keys':[key],'duration':180,'before':5},**extra))
+            with app.db() as c:r=c.execute("SELECT start,end FROM clips WHERE match_ref=? AND event_ref=?",(key,sku)).fetchone()
+            return r['start'],r['end']
+        self.assertEqual(times('1:1'),(995,1175))                                              # no adjustment: as before
+        self.assertEqual(times('1:2',startAdjust=-10,endAdjust=25),(1985,2200))                # 10 s earlier start, 25 s later end
+        for bad in ({'startAdjust':61},{'endAdjust':121},{'endAdjust':-60,'duration':10},{'startAdjust':'x'}):
+            with self.assertRaises(HTTPError) as e:self.post('/api/events/queue',dict({'sku':sku,'keys':['1:3'],'duration':180,'before':5},**bad))
+            self.assertEqual(e.exception.code,400)
+        # the adjustments belong to quick downloads; match detection ignores them
+        self.post('/api/events/queue',{'sku':sku,'keys':['1:3'],'mode':'dynamic','startAdjust':50,'endAdjust':50})
+        with app.db() as c:r=c.execute("SELECT start,end FROM clips WHERE match_ref='1:3' AND event_ref=?",(sku,)).fetchone()
+        self.assertEqual((r['start'],r['end']),(2995,3175))
     def test_library_reports_progress_for_active_jobs_only(self):
         with app.db() as c:
             c.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES('prog2','t','u',0,10,'','downloading','',1)")

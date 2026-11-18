@@ -432,17 +432,25 @@ class Handler(BaseHTTPRequestHandler):
                 try: offset=float(body.get('offset',0))
                 except (ValueError,TypeError):raise ValueError('Invalid timing adjustment')
                 if not -3600<=offset<=3600 or not 1<=duration<=3600 or before>60:raise ValueError('Use a 1–3600 second clip, up to 60 seconds before, and adjustment within one hour')
+                # Quick (fixed length) downloads can move each edge: negative is earlier, positive is later.
+                adjust_start=adjust_end=0.0
+                if mode=='fixed':
+                    try:adjust_start=float(body.get('startAdjust',0));adjust_end=float(body.get('endAdjust',0))
+                    except (ValueError,TypeError):raise ValueError('Invalid start or end adjustment')
+                    if not (-60<=adjust_start<=60 and -60<=adjust_end<=120):raise ValueError('Move the start by up to a minute and the end by up to two minutes')
                 prepared=[]
                 for key in keys:
                     m=lookup.get(key)
                     if not m:raise ValueError('A selected match is no longer in the event')
                     if not m['available']:raise ValueError(m['label']+' needs a recording timestamp first')
-                    start=max(0,seconds(m['timestamp'])+offset-before)
+                    base=max(0,seconds(m['timestamp'])+offset-before)
+                    start=max(0,base+adjust_start);end=base+duration+adjust_end
+                    if end-start<5:raise ValueError(m['label']+': with these start and end adjustments the clip would be under 5 seconds')
                     url=source_url(m['url'])
                     notes=' · '.join([event['sku'],m['division'],'Teams: '+', '.join(m['teams']) if m['teams'] else '',m['timing']]).strip(' ·')
                     scores=' / '.join(str(a['color'])+': '+str(a['score']) for a in m['alliances'] if a.get('score') is not None)
                     if scores:notes+=' · '+scores
-                    prepared.append((uuid.uuid4().hex,event['name']+' · '+m['division']+' · '+m['label'],url,start,start+duration,notes,'queued','Waiting in queue',time.time(),event['sku'],key,mode,json.dumps({'anchor':max(0,seconds(m['timestamp'])+offset),'lead':before,'tail':tail,'window':window,'label':m['label'],'format':match_format(event)})))
+                    prepared.append((uuid.uuid4().hex,event['name']+' · '+m['division']+' · '+m['label'],url,start,end,notes,'queued','Waiting in queue',time.time(),event['sku'],key,mode,json.dumps({'anchor':max(0,seconds(m['timestamp'])+offset),'lead':before,'tail':tail,'window':window,'label':m['label'],'format':match_format(event)})))
                 added=[];skipped=[]
                 with LOCK,db() as c:
                     for item in prepared:

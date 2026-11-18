@@ -36,6 +36,8 @@ struct EventView: View {
     @Environment(\.dismissWindow) private var dismissWindow
     @AppStorage("download.before") private var before = 5.0
     @AppStorage("download.offset") private var offset = 0.0
+    @AppStorage("download.mode") private var downloadMode = "fixed"
+    @AppStorage("download.startAdjust") private var startAdjust = 0.0
 
     private var event: EventDetail? { events.event }
     private var selected: [Match] { event?.matches.filter { selection.contains($0.key) } ?? [] }
@@ -230,12 +232,12 @@ struct EventView: View {
     /// Opens the recording on its own site at the match, for videos that can't play inside the app.
     private func openInBrowser(_ match: Match) {
         guard let url = match.url else { return }
-        let item = PreviewItem(title: "", url: url, target: max(0, (match.timestamp ?? 0) + offset - before), port: 0)
+        let item = PreviewItem(title: "", url: url, target: max(0, (match.timestamp ?? 0) + offset - before + (downloadMode == "fixed" ? startAdjust : 0)), port: 0)
         if let link = item.recordingURL { NSWorkspace.shared.open(link) }
     }
     private func preview(_ ids: Set<String>) {
         guard let match = event?.matches.first(where: { ids.contains($0.key) && $0.available }), let url = match.url, let port = library.client?.baseURL.port else { return }
-        let item = PreviewItem(title: Labels.show(match.label) + ", " + match.division, url: url, target: max(0, (match.timestamp ?? 0) + offset - before), port: port)
+        let item = PreviewItem(title: Labels.show(match.label) + ", " + match.division, url: url, target: max(0, (match.timestamp ?? 0) + offset - before + (downloadMode == "fixed" ? startAdjust : 0)), port: port)
         if PreviewWindows.shared.open.contains(item.id) { dismissWindow(value: item) } else { openWindow(value: item) }
     }
 }
@@ -257,6 +259,80 @@ struct AllianceCell: View {
     }
 }
 
+/// One slider for the whole clip: the left thumb is where it starts, the right thumb is where it ends, and the
+/// filled stretch between them is what gets saved. The thin mark is the official match start. Thumbs move in
+/// 5 second steps and stay at least 5 seconds apart (Sliders.md: min on the leading side, a label, live feedback).
+struct ClipRangeSlider: View {
+    @Binding var startAdjust: Double
+    @Binding var endAdjust: Double
+    let baseStart: Double   // seconds from the match start where the clip would start with no adjustment
+    let baseEnd: Double
+    private let step = 5.0
+    private let startLimits = -60.0...60.0
+    private let endLimits = -60.0...120.0
+    private enum Edge: Hashable { case start, end }
+    @FocusState private var focus: Edge?
+    @State private var dragging: Edge?
+
+    private var lower: Double { baseStart + startLimits.lowerBound }
+    private var upper: Double { baseEnd + endLimits.upperBound }
+    private var startT: Double { baseStart + startAdjust }
+    private var endT: Double { baseEnd + endAdjust }
+
+    private func move(_ edge: Edge, toSeconds t: Double) {
+        switch edge {
+        case .start:
+            let value = ((t - baseStart) / step).rounded() * step
+            startAdjust = min(max(value, startLimits.lowerBound), min(startLimits.upperBound, endT - step - baseStart))
+        case .end:
+            let value = ((t - baseEnd) / step).rounded() * step
+            endAdjust = max(min(value, endLimits.upperBound), max(endLimits.lowerBound, startT + step - baseEnd))
+        }
+    }
+    private func nudge(_ edge: Edge, by amount: Double) { move(edge, toSeconds: (edge == .start ? startT : endT) + amount) }
+    private func name(_ edge: Edge) -> String { edge == .start ? "Clip start" : "Clip end" }
+    private func spoken(_ t: Double) -> String { t < 0 ? "\(Int(-t)) seconds before the match" : "\(Int(t)) seconds into the match" }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let span = max(upper - lower, 1)
+            let position: (Double) -> CGFloat = { CGFloat(($0 - lower) / span) * width }
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.14)).frame(height: 4)
+                Rectangle().fill(Color.primary.opacity(0.4)).frame(width: 1.5, height: 14).offset(x: position(0) - 0.75)
+                Capsule().fill(Color.accentColor).frame(width: max(0, position(endT) - position(startT)), height: 4).offset(x: position(startT))
+                thumb(.start).offset(x: position(startT) - 11)
+                thumb(.end).offset(x: position(endT) - 11)
+            }
+            .frame(maxHeight: .infinity)
+            .coordinateSpace(name: "clipTrack")
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("clipTrack")).onChanged { drag in
+                    let t = lower + Double(drag.location.x / max(width, 1)) * span
+                    // Grab whichever thumb is closer to where the pointer went down.
+                    let edge: Edge = dragging ?? (abs(t - startT) <= abs(t - endT) ? .start : .end)
+                    dragging = edge; focus = edge; move(edge, toSeconds: t)
+                }.onEnded { _ in dragging = nil }
+            )
+        }
+        .frame(height: 28)
+    }
+
+    private func thumb(_ edge: Edge) -> some View {
+        Circle().fill(.white).frame(width: 22, height: 22)
+            .overlay(Circle().strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.28), radius: 2, y: 1)
+            .focusable().focused($focus, equals: edge)
+            .onKeyPress(.leftArrow) { nudge(edge, by: -step); return .handled }
+            .onKeyPress(.rightArrow) { nudge(edge, by: step); return .handled }
+            .accessibilityElement()
+            .accessibilityLabel(name(edge))
+            .accessibilityValue(spoken(edge == .start ? startT : endT))
+            .accessibilityAdjustableAction { direction in nudge(edge, by: direction == .increment ? step : -step) }
+    }
+}
+
 struct DownloadOptions: View {
     @AppStorage("download.mode") private var mode = "fixed"
     @AppStorage("download.duration") private var duration = 180.0
@@ -264,6 +340,15 @@ struct DownloadOptions: View {
     @AppStorage("download.tail") private var tail = 5.0
     @AppStorage("download.window") private var window = 480.0
     @AppStorage("download.offset") private var offset = 0.0
+    @AppStorage("download.startAdjust") private var startAdjust = 0.0
+    @AppStorage("download.endAdjust") private var endAdjust = 0.0
+    private func clock(_ seconds: Double) -> String { let s = Int(abs(seconds).rounded()); return String(format: "%d:%02d", s / 60, s % 60) }
+    /// Where the clip starts and ends, in plain words, relative to the official match start.
+    private var span: String {
+        let start = offset - before + startAdjust, end = offset - before + duration + endAdjust
+        func edge(_ t: Double) -> String { t < 0 ? "\(clock(t)) before the match" : "\(clock(t)) into the match" }
+        return end - start < 5 ? "The end must come after the start." : "From \(edge(start)) to \(edge(end)), \(clock(end - start)) in all."
+    }
     private var quick: Binding<Bool> { Binding(get: { mode == "fixed" }, set: { mode = $0 ? "fixed" : "dynamic" }) }
     private func minutes(_ seconds: Double) -> String { String(format: seconds.truncatingRemainder(dividingBy: 60) == 0 ? "%.0f" : "%.1f", seconds / 60) }
     var body: some View {
@@ -275,8 +360,17 @@ struct DownloadOptions: View {
                  : "Searches around the match to find its start and end. Downloads about \(minutes(90 + window)) minutes per match.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
-        if mode == "fixed" { TextField("Length (seconds)", value: $duration, format: .number) }
-        else {
+        if mode == "fixed" {
+            TextField("Length (seconds)", value: $duration, format: .number)
+            LabeledContent("Clip") {
+                ClipRangeSlider(startAdjust: $startAdjust, endAdjust: $endAdjust, baseStart: offset - before, baseEnd: offset - before + duration)
+            }
+            HStack {
+                Text(span).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                if startAdjust != 0 || endAdjust != 0 { Button("Reset") { startAdjust = 0; endAdjust = 0 }.buttonStyle(.borderless) }
+            }
+        } else {
             Picker("Search Window", selection: $window) { ForEach([180.0, 300, 480, 600, 1200], id: \.self) { Text("\(Int($0 / 60)) minutes").tag($0) } }
             TextField("After Match (seconds)", value: $tail, format: .number)
         }
@@ -295,6 +389,8 @@ struct DownloadSheet: View {
     @AppStorage("download.tail") private var tail = 5.0
     @AppStorage("download.window") private var window = 480.0
     @AppStorage("download.offset") private var offset = 0.0
+    @AppStorage("download.startAdjust") private var startAdjust = 0.0
+    @AppStorage("download.endAdjust") private var endAdjust = 0.0
     @State private var error: String?
     @State private var busy = false
     private var available: [Match] { selected.filter(\.available) }
@@ -315,7 +411,7 @@ struct DownloadSheet: View {
         Task {
             defer { busy = false }
             do {
-                let result = try await client.queue(QueueRequest(sku: event.sku, keys: available.map(\.key), mode: mode, duration: duration, before: before, tail: tail, window: window, offset: offset))
+                let result = try await client.queue(QueueRequest(sku: event.sku, keys: available.map(\.key), mode: mode, duration: duration, before: before, tail: tail, window: window, offset: offset, startAdjust: startAdjust, endAdjust: endAdjust))
                 try await library.refresh(); library.message = "\(result.added.count) added to Downloads; \(result.skipped.count) already there."; dismiss()
             } catch { self.error = error.localizedDescription }
         }
