@@ -30,8 +30,10 @@ export function provider(url) {
     return {kind:'youtube',id};
   }
   if (['vimeo.com','player.vimeo.com'].includes(host)) {
-    const parts=u.pathname.split('/').filter(Boolean),index=parts.findIndex(p=>/^\d+$/.test(p));
-    if(index<0) throw Error('Use a link to one Vimeo recording.');
+    const parts=u.pathname.split('/').filter(Boolean);
+    // vimeo.com/event/<event id>/video/<video id>: the number after "video" is the recording, not the first number.
+    const afterVideo=parts.lastIndexOf('video')+1,index=afterVideo>0&&/^\d+$/.test(parts[afterVideo]||'')?afterVideo:parts.findIndex(p=>/^\d+$/.test(p));
+    if(index<0||(parts[0]==='event'&&afterVideo===0)) throw Error('Use a link to one Vimeo recording, not an event page.');
     const id=parts[index],hash=u.searchParams.get('h')||(parts[index+1]||'');
     return {kind:'vimeo',url:'https://player.vimeo.com/video/'+id+(hash?'?h='+encodeURIComponent(hash):'')};
   }
@@ -40,7 +42,12 @@ export function provider(url) {
 export function recordingLink(url,target) {
   const u=new URL(url),p=provider(url),t=Math.max(0,Math.floor(target));
   if(p.kind==='youtube'){u.searchParams.delete('start');u.searchParams.set('t',t+'s');}
-  else if(p.kind==='vimeo')u.hash='t='+t+'s';
+  else if(p.kind==='vimeo'){
+    // Event pages ignore a time; the video's own page takes it.
+    const id=/\/video\/(\d+)/.exec(u.pathname)?.[1]||/^\/(\d+)/.exec(u.pathname)?.[1];
+    if(/^\/event\//.test(u.pathname)&&id){u.pathname='/'+id;u.search='';}
+    u.hash='t='+t+'s';
+  }
   else if(/\.(mp4|webm|m3u8)(?:$|\?)/i.test(u.pathname))u.hash='t='+t;
   return u.href;
 }

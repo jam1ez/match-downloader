@@ -17,6 +17,12 @@ struct PreviewItem: Codable, Hashable, Identifiable {
     var recordingURL: URL? {
         guard var url = URLComponents(string: self.url) else { return nil }
         if url.host?.contains("youtu") == true { url.queryItems = (url.queryItems ?? []).filter { $0.name != "t" && $0.name != "start" } + [URLQueryItem(name: "t", value: "\(Int(target))s")] }
+        else if url.host?.contains("vimeo") == true {
+            // Vimeo takes "#t=30s" on the video's own page; an event page ignores it, so link to the video.
+            let parts = url.path.split(separator: "/").map(String.init)
+            if parts.first == "event", let i = parts.lastIndex(of: "video"), parts.indices.contains(i + 1), Int(parts[i + 1]) != nil { url.path = "/" + parts[i + 1]; url.query = nil }
+            url.fragment = "t=\(Int(target))s"
+        }
         else { url.fragment = "t=\(Int(target))" }
         return url.url
     }

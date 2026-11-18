@@ -80,6 +80,11 @@ def boxcast(url):
     if u.hostname in ('boxcast.tv','www.boxcast.tv'):
         match=re.fullmatch(r'/(?:view|embed)/([^/]+)',u.path.rstrip('/'))
         if match: return 'https://boxcast.tv/view-embed/'+match.group(1)
+    # A Vimeo event link is /event/<event id>/video/<video id>. The video id is the one that names the recording;
+    # the event id belongs to a different Vimeo page, so point at the video itself.
+    if u.hostname in ('vimeo.com','www.vimeo.com'):
+        match=re.fullmatch(r'/event/\d+/video/(\d+)(?:/([0-9a-f]+))?',u.path.rstrip('/'))
+        if match: return 'https://vimeo.com/'+match.group(1)+('/'+match.group(2) if match.group(2) else '')
     return url
 
 LOGPOS={}  # where the running command's output starts in job.log, so progress never reads an earlier step

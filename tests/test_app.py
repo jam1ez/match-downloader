@@ -276,6 +276,11 @@ class Tests(unittest.TestCase):
             with app.db() as c:c.execute("UPDATE clips SET status='failed' WHERE id=?",(id,))
             with self.assertRaises(HTTPError) as e:self.post(f'/api/clips/{id}/adjust',{'start':12,'end':25})
             self.assertEqual(e.exception.code,400)
+    def test_vimeo_event_links_point_at_the_video_not_the_event(self):
+        self.assertEqual(app.boxcast('https://vimeo.com/event/5938928/video/1193358615'),'https://vimeo.com/1193358615')
+        self.assertEqual(app.boxcast('https://vimeo.com/event/5938928/video/1193358615/abcdef1234'),'https://vimeo.com/1193358615/abcdef1234')
+        self.assertEqual(app.boxcast('https://vimeo.com/123456789/abcde'),'https://vimeo.com/123456789/abcde')
+        self.assertEqual(app.boxcast('https://vimeo.com/event/5938928'),'https://vimeo.com/event/5938928')
     def test_library_reports_progress_for_active_jobs_only(self):
         with app.db() as c:
             c.execute("INSERT INTO clips(id,title,url,start,end,notes,status,detail,created) VALUES('prog2','t','u',0,10,'','downloading','',1)")
