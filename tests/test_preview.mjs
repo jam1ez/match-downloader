@@ -9,6 +9,13 @@ test('recognizes YouTube recording URLs and preserves Vimeo unlisted access hash
   assert.equal(provider('https://vimeo.com/123456789/abcde').url,'https://player.vimeo.com/video/123456789?h=abcde');
   assert.equal(provider('https://player.vimeo.com/video/123456789?h=abcde').url,'https://player.vimeo.com/video/123456789?h=abcde');
 });
+test('a Vimeo event link names its recording by the video id, not the event id',()=>{
+  assert.equal(provider('https://vimeo.com/event/5938928/video/1193358615').url,'https://player.vimeo.com/video/1193358615');
+  assert.equal(provider('https://vimeo.com/event/5938928/video/1193358615/abcdef123').url,'https://player.vimeo.com/video/1193358615?h=abcdef123');
+  assert.throws(()=>provider('https://vimeo.com/event/5938928/embed/interaction'),/not an event page/);
+  assert.equal(provider('https://vimeo.com/123456789').url,'https://player.vimeo.com/video/123456789');
+  assert.equal(recordingLink('https://vimeo.com/event/5938928/video/1193358615',3058),'https://vimeo.com/1193358615#t=3058s');
+});
 test('external recording link uses match time instead of original stale t=0',()=>{
   assert.equal(new URL(recordingLink('https://youtube.com/watch?v=T3iBuIt4M-0&t=0',14793)).searchParams.get('t'),'14793s');
   assert.equal(new URL(recordingLink('https://vimeo.com/123456789',67)).hash,'#t=67s');
