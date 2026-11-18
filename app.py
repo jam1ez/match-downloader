@@ -315,10 +315,14 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError:
                     if not saved:raise
                     data={'events':[],'cached':True,'offline':True}
-                saved_keys={e['sku'] for e in saved};known={e['sku'] for e in data['events']}
-                for e in data['events']:e['saved']=e['sku'] in saved_keys;e['custom']=False
-                data['events'] += [dict(e,saved=True,custom=True) for e in saved if e['sku'] not in known]
+                saved_keys={e['sku'] for e in saved};known={e['sku'] for e in data['events']};archived=EVENTS.archived()
+                for e in data['events']:e['saved']=e['sku'] in saved_keys;e['custom']=False;e['archived']=e['sku'] in saved_keys and e['sku'] in archived
+                data['events'] += [dict(e,saved=True,custom=True,archived=e['sku'] in archived) for e in saved if e['sku'] not in known]
                 return self.json(data)
+            if path=='/api/events/archive':
+                return self.json(EVENTS.set_archived(body.get('sku',''),body.get('archived') is not False))
+            if path=='/api/events/remove':
+                return self.json(EVENTS.remove(body.get('sku','')))
             if path=='/api/events/load':
                 return self.json(EVENTS.load(body.get('sku',''),bool(body.get('refresh')),os.environ.get('ROBOTEVENTS_API_KEY','')))
             if path=='/api/events/recording':

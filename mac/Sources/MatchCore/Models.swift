@@ -102,6 +102,9 @@ public struct CatalogueEvent: Codable, Sendable, Hashable, Identifiable {
     public var name: String
     public var saved: Bool
     public var custom: Bool
+    /// Put away by the user: still saved on this Mac, listed under Archived.
+    public var archived: Bool?
+    public var isArchived: Bool { saved && archived == true }
     public var id: String { sku }
 }
 

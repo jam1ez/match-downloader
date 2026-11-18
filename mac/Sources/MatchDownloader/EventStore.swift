@@ -19,6 +19,21 @@ final class EventStore {
         do { catalogue = try await client.catalogue(refresh: refresh).events }
         catch { self.error = error.localizedDescription }
     }
+    func archive(_ sku: String, _ archived: Bool) async {
+        guard let client else { return }
+        do { try await client.archiveEvent(sku: sku, archived: archived); await catalogue() }
+        catch { self.error = error.localizedDescription }
+    }
+    /// Returns true when the event was removed from this Mac.
+    func remove(_ sku: String) async -> Bool {
+        guard let client else { return false }
+        do {
+            try await client.removeEvent(sku: sku)
+            if event?.sku == sku { event = nil }
+            await catalogue()
+            return true
+        } catch { self.error = error.localizedDescription; return false }
+    }
     func load(_ sku: String, refresh: Bool = false) async {
         guard let client else { return }
         let id = UUID(); loadID = id; loading = true; error = nil

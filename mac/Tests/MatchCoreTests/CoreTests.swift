@@ -78,3 +78,9 @@ func fixture<T: Decodable>(_ name: String, as: T.Type = T.self) throws -> T {
     #expect(probe.metadata.duration == nil)
     #expect(probe.metadata.recordings.isEmpty)
 }
+
+@Test func catalogueEventsReadArchivedFlagWhenPresent() throws {
+    let json = #"{"events":[{"sku":"VE-V5-26-1","name":"A","saved":true,"custom":false,"archived":true},{"sku":"VE-V5-26-2","name":"B","saved":true,"custom":false},{"sku":"VE-V5-26-3","name":"C","saved":false,"custom":false,"archived":true}]}"#
+    let events = try JSONDecoder().decode(Catalogue.self, from: Data(json.utf8)).events
+    #expect(events.map(\.isArchived) == [true, false, false])  // only saved events can be archived
+}

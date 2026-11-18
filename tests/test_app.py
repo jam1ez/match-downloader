@@ -85,6 +85,24 @@ class Tests(unittest.TestCase):
             finally:
                 if proc.poll() is None: proc.terminate()
                 proc.stdout.close(); proc.wait()
+    def test_archive_and_remove_saved_event(self):
+        sku='VE-V5-26-00001';other='VE-V5-26-00002'
+        app.EVENTS.write('catalogue',[{'sku':other,'name':'Preset','divisions':{}}])
+        for k,n in ((sku,'Mine'),(other,'Preset')):app.EVENTS.write(k,{'sku':k,'name':n,'divisions':[],'matches':[]})
+        def listing():return {e['sku']:e for e in self.post('/api/events/catalogue',{})['events']}
+        self.assertFalse(listing()[sku]['archived'])
+        self.assertTrue(self.post('/api/events/archive',{'sku':sku,'archived':True})['archived'])
+        self.assertTrue(listing()[sku]['archived']);self.assertTrue(listing()[sku]['saved'])
+        self.assertTrue(app.EVENTS.read(sku))  # still available offline
+        self.post('/api/events/archive',{'sku':sku,'archived':False});self.assertFalse(listing()[sku]['archived'])
+        # removing deletes the saved schedule; a preset returns to the catalogue, a custom event disappears
+        self.post('/api/events/archive',{'sku':other,'archived':True})
+        self.post('/api/events/remove',{'sku':other})
+        self.assertIsNone(app.EVENTS.read(other));self.assertFalse(listing()[other]['saved']);self.assertFalse(listing()[other]['archived'])
+        self.post('/api/events/remove',{'sku':sku});self.assertNotIn(sku,listing())
+        for path in ('/api/events/archive','/api/events/remove'):
+            with self.assertRaises(HTTPError) as e:self.post(path,{'sku':sku})
+            self.assertEqual(e.exception.code,400)
     def test_token_env_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             env=dict(os.environ,MATCH_DOWNLOADER_DATA=tmp,MATCH_DOWNLOADER_TOKEN='fixed-test-token')

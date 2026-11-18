@@ -152,3 +152,8 @@ Before long polish/review: inspect source with apple-design references; improve 
 - App: Quit asks the engine to exit when idle instead of stopping it; reopening the app cancels that. If the engine cannot be asked, it is stopped as before.
 - Verified on a throwaway library, port 8799: quit with an active download left the engine running, and it exited after the download finished. Not verified: a real download across a quit.
 - Found while testing: `terminate` waits in the modal-panel run-loop mode, which the main dispatch queue does not serve, so the reply uses `RunLoop.main.perform(inModes:)`.
+
+## Archive and remove events (2026-11-18)
+- Engine: `POST /api/events/archive` and `/api/events/remove`; archived SKUs live in `library/events/archived.json`; the catalogue response gains `archived`. Remove deletes only the saved schedule and recordings, never clips.
+- App: sidebar context menu and swipe actions on saved events (Archive, Unarchive, Remove from This Mac with a confirmation); an Archived section appears when needed.
+- Verified: engine test, Swift decode test, release build. Not verified by clicking through the UI.
