@@ -1,93 +1,45 @@
 # Match Downloader
 
-A local laptop app for selecting intervals from robotics match recordings and keeping an offline MP4 library. This app follows OpenScout’s event → division → match workflow and adds local video downloads. It includes a searchable Jumper event catalogue, official match schedules, alliance teams and scores, match-number selection, and automatic video positions where available. It does not implement OpenScout’s accounts, shared picklists or full team analytics.
+A Mac app for saving VEX match videos to watch offline. Pick an event, pick the matches, and it downloads just those moments from the event's recording as MP4 files.
 
-## Start on this Mac
+## Run it
 
-Double-click **Match Downloader.app** in this folder. It opens the native SwiftUI library window and starts or attaches to the local Python engine. No Terminal window is needed. Closing the window leaves the app running; click its Dock icon to reopen it. Choose **Match Downloader → Quit Match Downloader** (Command-Q) to stop it. The browser address http://127.0.0.1:8766 also works while the app is running.
+1. Double-click **Match Downloader.app** (keep it next to `app.py` and `.venv`).
+2. First time on a new Mac: install Python 3.10+ and FFmpeg, then run `Start.command` once to set up the Python environment.
+3. Quit with Command-Q. Closing the window leaves the app running.
 
-Keep Match Downloader.app beside app.py, .venv, and the other files in this folder. (The app was previously called ScoutVault; a Dock shortcut to ScoutVault.app needs to be replaced.) To make it easy to find, drag the app to the Dock. Logs are saved in `library/desktop.log`. The native app requires macOS 26 and its source is in `mac/`. Build it with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer mac/scripts/build-app.sh` using Xcode 26 and Swift 6. The script preserves the previous bundle under `mac/.build/` and signs the new bundle ad hoc. Quit the old app before opening the new **Match Downloader.app**. The former WebKit wrapper remains as source in `tools/Desktop.swift`.
+Needs macOS 26. Logs are in `library/desktop.log`. On Windows run `Start.bat`; on Linux run `python3 -m venv .venv`, `.venv/bin/pip install -r requirements.txt`, then `.venv/bin/python app.py` and open http://127.0.0.1:8766.
 
-For setup on another laptop, install Python 3.10+, FFmpeg and Node.js 22+ if needed, then run Start.command once to create the Python environment and install dependencies. The native app uses that same environment. The terminal launcher remains available as an alternative; keep its Terminal window open while using it.
+## Use it
 
-On Windows, install Python and FFmpeg on PATH, then run `Start.bat`. On Linux, install Python, its venv support, FFmpeg, and optionally Node, then run `python3 -m venv .venv`, `.venv/bin/pip install -r requirements.txt`, and `.venv/bin/python app.py`.
+1. **Pick an event.** Choose one in the sidebar, or click **+** and paste an event code (`VE-…` or `RE-…`) or event page link.
+2. **Select matches.** Click rows, or search for labels like `q67`, `Q60-Q70` or `qf1-1, sf2-1`. Use the filters to narrow the schedule.
+3. **Check the video.** Press Space to preview the recording at the match. If a video can't play inside the app, use **Open in Browser** to watch it at the right time.
+4. **Download.** Click **Download…**. The app finds the start and end of each match and saves an MP4.
+5. **Watch.** Open **Downloads** in the sidebar and press Space to play. Anything marked *Needs review* lets you adjust the start and end by hand.
 
-## Interfaces
+Other things you can do:
+- **Clip from Link** (File menu) saves a clip from any recording link.
+- **Recordings** (inspector) lets you add your own YouTube, Vimeo, BoxCast or MP4 link if the app didn't find one, or if an event has several.
+- **Set Video Position…** (right-click a match) fixes a match that is out of sync.
 
-The Mac app uses native SwiftUI tables, sheets, inspectors, menus and Settings. Recording previews use the existing provider web players; saved clips and review windows use AVPlayer. Choose **Help → Open in Browser** for the frozen browser fallback at http://127.0.0.1:8766/. `/next` and `/classic` remain available on the same engine and library. The steps below describe the native app; `redesign/swiftui/PROGRESS.md` records implementation and verification.
+## Good to know
 
-For testing, the native executable accepts `--root`, `--data` and `--port`, or `MATCH_DOWNLOADER_ROOT`, `MATCH_DOWNLOADER_DATA` and `MATCH_DOWNLOADER_PORT`. Test against a separate library copy on port 8799; never run two engines on one library. Settings shows the active library location and default download options.
+- Schedules you've opened stay on your Mac and work offline. Loading events, previewing and downloading need internet.
+- Saved videos are in `library/`. Back up that whole folder. Set `MATCH_DOWNLOADER_DATA` to move it.
+- Video positions are estimates. Preview a match before downloading.
+- No logins, DRM or paywalled videos. Only download recordings you're allowed to.
+- The app only listens on your own Mac (127.0.0.1).
 
-## Browse and select matches
+## Build and test
 
-1. Choose an event in the sidebar. **On This Mac** lists events you have opened (they work offline); **Event Catalogue** lists Jumper presets. Type in **Filter Events** to narrow the list. Choose **File → Add Events…** or click **+** to add any valid VEX event by an old `RE-…` code, a new `VE-…` code, or its full events.vex.com / robotevents.com event page link — one per line to add several. For example, `VE-V5-26-65786` works with either its code or URL. There is no fixed event-count limit.
-2. Narrow the schedule with **Division**, **Round** and **Day**, and **Has Video** to hide matches without a video position. The schedule includes qualifications, quarterfinals, semifinals, finals, practice and round-of-16 matches where published. Teams and scores come from the official schedule. Click a column heading to sort; drag a heading edge to resize.
-3. Type a match label such as `q67` or `qf1-1` in the search field (Command-F). Labels are case-insensitive and exact: Q67 does not select Q670. Use `Q67, QF1-1, SF2-1` for a list or `Q60-Q70` for a range. Team numbers also work when official team information is available. Press Return to select the matches shown that have video.
-4. Or select rows directly: click, Command-click to add or remove, Shift-click or Shift-arrow for a range, Command-A for all shown. Select the division first if you only want that division’s Q67. Right-click a row for Preview, Set Video Position…, recording choices and Download….
-5. Press Space (or double-click) to preview the recording at the match, then choose **Download…** in the toolbar. **Find the match start and end** is the default: the app searches around the estimate, reads the visible timer locally, verifies the selected match label, and trims around the observed match. Set footage before and after the match. **Fixed length** remains available when you prefer a known interval. The sheet remembers your settings.
-The preview uses explicit player seek commands, with a visible target and actual playback position. **Go to Match Start** returns to the selected start at any point. Preview includes the configured lead-in and shift, matching the download start. **Open in Browser…** opens the original recording at the same time.
+```
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer mac/scripts/build-app.sh
+python3 -m unittest discover -s tests -v
+```
 
-6. Open **Downloads** in the sidebar to follow progress and play saved matches (Space or Return). Use **File → Clip from Link…** for a recording outside an event. The inspector (Option-Command-I) shows details and notes. Selecting the same event/match twice does not create duplicate jobs. Use Retry for failed jobs.
+The app source is in `mac/` (Xcode 26, Swift 6). Test against a copy of the library on another port with `--data` and `--port`, never two engines on one library. Help → Open in Browser opens the older web version.
 
-For Jumper preset events, source URLs and match positions are supplied automatically. For Worlds events covered by the included configuration, official match times are mapped to BoxCast recordings; those positions are estimates. A negative or out-of-recording timestamp is not marked downloadable.
+## License
 
-## Recordings and synchronization
-
-Every event has its own recordings, in the inspector’s **Recordings** tab. You can keep multiple links for separate days, divisions, fields, or sessions; recordings are not limited to events with a Jumper preset.
-
-- On first load, Match Downloader checks the VEX webcast section and Jumper detection for possible links. **Check Event Page Again** runs the lookup again. A description saying to search for a channel is shown as guidance; it is not treated as a verified recording URL. Detection can be unavailable if the upstream service is offline or rate limited. **Add Recording…** always remains available.
-- **Partly timed events.** When the event feed (Jumper or Worlds) skipped some matches, Match Downloader places them on the same recording automatically: the feed's positions are the recording start plus each match's official time, so an untimed match in the same division and day gets the matching offset. These appear as “Estimated from Q66 (same recording)”. Only matches with an official actual start are estimated: a match with only a scheduled time may not have been played or broadcast (a live check of schedule-only practice matches found a holding slide at the computed position). Estimates are limited to one hour from a timed match and are never placed before the recording starts. A position later than the feed's last match in that recording is used only after the recording's length has been read, which automatic timing does on load. Your manual timings and your own recordings always take precedence.
-- Automatic timing runs when an event first opens with any untimed match, and again after **Refresh schedule** when matches are still untimed. **Find Positions Again** runs it again. It checks published webcast links, resolves matching recordings from channel links, and searches YouTube by event title if no usable published recording or saved link exists. Search results must match the event name and year and cover its match dates; multi-division recordings need an identifiable division or your choice.
-- Add your own YouTube, Vimeo, BoxCast, Dailymotion, MP4, HLS or other supported recording link. Assign its event day, division and optional field. **The broadcast start time** is the default: saving reads the broadcast metadata and calculates all match positions in that recording. No per-match timestamp entry is needed. **Nothing yet** keeps an unconfigured recording in the event. Recordings that automatic timing finds for an event whose feed already has positions are marked **Only fill matches that have no position**: they time the remaining matches and never replace the feed's positions. You can change this option in the recording editor.
-- Use **Read Details** to fetch a title/duration and, for live archives that expose it, a stream-start estimate. Channel/playlist lookups can list up to 20 recent entries; choose a specific video before saving. An edited upload’s publication time is not used as its broadcast start.
-- If the provider does not expose a broadcast start, or the archive was edited, choose **A match I can see in the recording**, choose one match, and enter where it starts in the recording. **Show Player** lets you seek in the player and click **Use Player Time**. The other matches are mapped relative to that anchor using actual match starts, falling back to the schedule when missing. Scheduled-only mapping is also available.
-- Alternatively, use a verified recording-start timestamp with its UTC offset. A positive sync adjustment seeks later; a negative adjustment seeks earlier. Check an estimated start against a known match before trusting it.
-- For a stream restart or separate morning/afternoon links, set **Covers** (first and last match) for each recording. Duration also prevents mapping beyond a recording’s end. Matches before the recording starts are not clamped to zero.
-- If equally specific recordings overlap, the match shows “Choose a recording”; pick one in the inspector or under **Use Recording** in the row’s right-click menu. That choice is saved for that match. More specific division/field/session mappings take priority over a general recording. **Set Video Position…** remains available for any match.
-
-All recordings, sync settings and per-match choices are saved in `library/events/`. Reloading or refreshing event results preserves them. Removing a recording restores underlying preset links where available and leaves downloaded clips intact. Preview and dynamic clip detection use the selected recording and its computed match position.
-
-The event catalogue and all loaded schedules are cached on this laptop. Reopening a loaded event works without internet. Refresh explicitly to obtain updated scores and match times. Loading new events and previews requires internet. The app uses OpenScout’s public data proxy by default; upstream rate limits and outages can affect loading. For independent official-data access, set `ROBOTEVENTS_API_KEY` in the launch environment. That key is sent only to the official VEX Events API and is not returned to the browser.
-
-## Dynamic match boundaries
-
-Dynamic mode uses the published timestamp as a search point. It downloads from 90 seconds before that estimate through the selected search window (8, 12 or 20 minutes after it), then samples frames every two seconds and reads the match clock. For two-phase matches, it looks for the autonomous countdown followed by the driver countdown, preserving the full variable pause between them. VEX IQ events use a single countdown. Footage before and after the detected match defaults to five seconds each.
-
-The on-screen match label is read with the same rules as the schedule, so qualification, practice, round-of-16, quarterfinal, semifinal and final labels (singular or plural, e.g. “Finals 1-1”, “R16 1-1”) can all be verified. The countdown format follows the event’s program (VEX IQ single countdown; V5RC/VURC autonomous + driver), falling back to the event code. A match is auto-trimmed only when the detector sees the initial clock, the expected match label, a consistent countdown trajectory and a complete finish. Autonomous reaching zero alone cannot finish a two-phase match. The timer must be visible and legible; occlusion, changing graphics, edited recordings, missing match labels or a start outside the search window can prevent automatic verification. The detected timing is approximate, usually within 2–4 seconds with the sampled footage. A longer pause needs a sufficiently long search window.
-
-Uncertain results appear as **Needs review** in Downloads. Choose **Check Start and End…** (or press Return), play the retained recording window, use **Use Current Time** for the start and the end, and save the clip. This final trim uses the local recording without downloading it again. The app does not silently mark an unverified fixed-duration clip as detected. Before review, no final match video is marked saved offline.
-
-All OCR runs locally. Mac uses Apple Vision through the included Swift source; Apple Command Line Tools are needed to build the helper on first use (`xcode-select --install`). The helper is cached in `library/ocr-tools` and later analysis works offline for retained files. Windows and Linux use Tesseract when its executable is on PATH. Without a working OCR engine, the downloaded window remains available for manual review. Dynamic analysis uses more bandwidth, disk space and CPU than fixed-duration clips.
-
-## Clips from a link and the library
-
-**Clip from Link** lets you paste a recording URL, enter a title and start/end positions (seconds or HH:MM:SS), add teams/scores/notes, and queue a download. Clips are limited to one hour each and target up to 720p. Processing converts to H.264/AAC MP4. Times should include a margin before and after the match. Extraction accuracy depends on the source; review clips before travelling.
-
-For batch jobs, use **Import a List** under Clip from Link with `example-matches.json` with your own URLs/times, select entries and queue them. Notes remain editable after download. Search covers titles and notes. Each recording URL must identify a video, not a channel or an entire playlist.
-
-“Saved” means the MP4 has been successfully created on disk. Reopen the launcher without internet to review saved matches. **Save MP4 As…** exports a video playable without running this app. Metadata is stored in `library/library.sqlite`, schedules in `library/events`, and videos in `library/<id>/clip.mp4`. Back up the whole library folder. Keep the app in a writable folder. Never delete it before copying out your library. Storage can be moved with the `MATCH_DOWNLOADER_DATA` environment variable (`SCOUTVAULT_DATA`, the former name, still works).
-
-## Source support and limits
-
-- YouTube, Vimeo and Dailymotion use yt-dlp's provider extractors.
-- BoxCast view/embed URLs are normalized for yt-dlp’s native BoxCast extractor, which resolves the recording playlist. Channel links specifying a broadcast and video-portal links also use that extractor.
-- Direct MP4 and HLS URLs use yt-dlp's generic support. Other yt-dlp supported providers may work too.
-- Support is conditional on an accessible recording, provider changes, source codecs and yt-dlp support. DRM, payment, account restrictions and unavailable recordings are not bypassed. No browser cookies are read. YouTube may require additional extractor components or authentication; failures appear in the library rather than being marked ready.
-- Use recordings you own or are permitted to download. A web player link alone is not a guarantee of downloadable media.
-- Active live streams are not a reliable source for historical clipping; use archived recordings. Some sources may transfer more than the requested interval before clipping. Signed URLs may expire; use the provider's permanent recording link where possible.
-- Downloads are sequential. A download interrupted by a temporary provider or network error is retried automatically twice (after 5 and 15 seconds). Private, removed, age-restricted and unsupported recordings fail immediately. Cancellation stops the running command; temporary files remain until deleting the cancelled entry. Interrupted downloads can be retried. Do not delete active entries until the worker stops.
-- The app requires no account or cloud server for local use, and no internet for playing saved matches. New event data, previews and downloads require internet. Automatic timing requires a published match time and an accurate broadcast start exposed by the provider, a Jumper preset, a configured Worlds broadcast, or your local calibration. MP4 files and edited uploads often need one manual anchor.
-
-## Maintenance
-
-The default dependency group includes yt-dlp’s matching EJS companion package for YouTube, as documented at https://github.com/yt-dlp/yt-dlp/wiki/EJS. Provider extractors change. To update: `.venv/bin/python -m pip install -U "yt-dlp[default]"` (Windows: `.venv\Scripts\python.exe -m pip install -U "yt-dlp[default]"`). The provided requirements pin the version used during development. FFmpeg is installed separately.
-
-The local server binds only to 127.0.0.1, checks Host headers, and requires a per-run token for changes. This is a single-user local tool; do not expose it to the network. Match titles and notes are rendered as text. Download jobs use argument arrays rather than a shell. Per-job diagnostic logs remain in each library directory and can contain recording URLs.
-
-## Verification
-
-Run `python3 -m unittest discover -s tests -v` and `node --test tests/test_preview.mjs`. Preview regression tests cover ignored initial seeks, the explicit first-play seek, and timestamped recording links. Automatic-timing tests cover broadcast metadata versus upload dates, missing metadata, preserving manual calibration, event-title validation, and scoped automatic mapping. Live verification of VE-V5-26-65786 found its archived YouTube broadcast and mapped all 69 matches; Q1 maps to 00:23:41. Those positions use official timestamps and remain estimates to preview before downloading. The automated suite checks variable autonomous-to-driver pauses, rejecting an autonomous-only finish, missing starts and clock occlusion, plus local review trimming, and exact Q67/QF1-1 labels, full schedule pagination, division isolation, batch queue validation and deduplication, offline event caching, recording calibration, BoxCast position mapping, input validation, clip extraction from a local HTTP video fixture, offline video byte ranges and failed-job handling. An end-to-end run on synthetic 185-second overlays labelled “Q67” and “R16 1-1”, using the real Apple Vision helper and the HTTP queue, detected both countdowns (true 30-second pause, measured 31) and saved 160-second clips. Retries clear partial per-format downloads first. Local OCR verification on the Q67 recording detected both countdowns, an approximately 32-second pause and a 152-second match span; five-second margins make the output 162 seconds. Live verification also loaded Ignite’s full 381-match schedule and downloaded a three-second sample from its Q67 YouTube source. Vimeo and Dailymotion acquisition have not been tested against live event recordings. Real-provider downloads must still be checked with your intended event URLs; extractor availability is not proof that every provider recording can be downloaded.
-
-## License and attribution
-
-Distributed under GNU AGPL v3. See LICENSE and NOTICE.md for the OpenScout Worlds data attribution. All application source is included.
+GNU AGPL v3. See `LICENSE` and `NOTICE.md` for OpenScout data attribution.
