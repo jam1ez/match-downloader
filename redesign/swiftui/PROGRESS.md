@@ -183,3 +183,6 @@ Before long polish/review: inspect source with apple-design references; improve 
 - Engine runs up to 2 jobs at once (`MATCH_DOWNLOADER_PARALLEL`, 1-4); OCR helper build is locked. Real test: three 90 s clips peaked at 2 running.
 - Worlds: `worlds-season.json` picks the year and folder title; `worlds.json` holds each year (2026 SKUs filled in). Catalogue response gains `worlds`; those events leave the general lists. Sidebar folder "Worlds 26" is collapsible; right-click opens the vexworlds.tv channel. `tools/new_worlds_season.py <year> "<title>"` writes next year (reproduces the 2026 block exactly). Real test: RE-V5RC-26-4025 loaded with 2970 of 2982 matches positioned.
 - Not verified by looking at the sidebar.
+
+## Sidebar order and defaults (2026-11-18)
+- Order: Library, On This Mac, Worlds, Archived, Event Catalogue. Worlds and Archived start collapsed (new storage keys, so earlier choices reset once). Not verified by looking.
