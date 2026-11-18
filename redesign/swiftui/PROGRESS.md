@@ -186,3 +186,10 @@ Before long polish/review: inspect source with apple-design references; improve 
 
 ## Sidebar order and defaults (2026-11-18)
 - Order: Library, On This Mac, Worlds, Archived, Event Catalogue. Worlds and Archived start collapsed (new storage keys, so earlier choices reset once). Not verified by looking.
+
+## Start and end sliders for Quick Download (2026-11-18)
+- Download sheet (and Settings): in Quick Download only, Start (-60 to +60 s) and End (-60 to +120 s) sliders in 5 s steps, a plain-words summary of the resulting clip, and Reset. Preview start includes the start slider.
+- Engine: `startAdjust`/`endAdjust` on `/api/events/queue`, fixed mode only, validated, clip must stay at least 5 s. Test added.
+- Not verified by looking at the sheet.
+
+- Later the same day: the two sliders became one two-thumb range slider (`ClipRangeSlider`); left thumb is the clip start, right thumb the end, 5 s steps, at least 5 s apart, arrow keys and VoiceOver adjust the focused thumb. Engine unchanged. Not verified by dragging it.

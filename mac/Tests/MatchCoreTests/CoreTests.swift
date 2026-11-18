@@ -102,3 +102,11 @@ func fixture<T: Decodable>(_ name: String, as: T.Type = T.self) throws -> T {
     #expect(catalogue.worlds?.events[1].channelURL == nil)
     #expect(try JSONDecoder().decode(Catalogue.self, from: Data(#"{"events":[]}"#.utf8)).worlds == nil)
 }
+
+@Test func queueRequestSendsStartAndEndAdjustments() throws {
+    let request = QueueRequest(sku: "VE-V5-26-1", keys: ["1:1"], mode: "fixed", duration: 180, before: 5, offset: 2, startAdjust: -10, endAdjust: 25)
+    let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any]
+    #expect(object?["startAdjust"] as? Double == -10 && object?["endAdjust"] as? Double == 25 && object?["mode"] as? String == "fixed")
+    let plain = try JSONSerialization.jsonObject(with: JSONEncoder().encode(QueueRequest(sku: "s", keys: ["k"]))) as? [String: Any]
+    #expect(plain?["startAdjust"] as? Double == 0 && plain?["endAdjust"] as? Double == 0)
+}

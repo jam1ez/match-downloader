@@ -356,11 +356,15 @@ public struct QueueRequest: Encodable, Sendable {
     public var tail: Double
     public var window: Double
     public var offset: Double
+    /// Quick downloads only: moves the clip's start or end. Negative is earlier, positive is later.
+    public var startAdjust: Double
+    public var endAdjust: Double
 
     public init(sku: String, keys: [String], mode: String = "dynamic", duration: Double = 180, before: Double = 5,
-                tail: Double = 5, window: Double = 480, offset: Double = 0) {
+                tail: Double = 5, window: Double = 480, offset: Double = 0, startAdjust: Double = 0, endAdjust: Double = 0) {
         self.sku = sku; self.keys = keys; self.mode = mode; self.duration = duration
         self.before = before; self.tail = tail; self.window = window; self.offset = offset
+        self.startAdjust = startAdjust; self.endAdjust = endAdjust
     }
 }
 
