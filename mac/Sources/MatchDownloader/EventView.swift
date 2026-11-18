@@ -1,0 +1,343 @@
+import SwiftUI
+import MatchCore
+
+struct ScheduleRow: Identifiable {
+    let match: Match
+    let ordinal: Int
+    let download: Clip?
+    var id: String { match.key }
+    var division: String { match.division }
+    var redScore: Int? { match.red?.score }
+    var blueScore: Int? { match.blue?.score }
+    var source: String? { let text = Labels.source(match); return match.available && !text.isEmpty ? text : nil }
+    var status: String? { download.map { Labels.status($0.status) } }
+}
+struct EventView: View {
+    @Bindable var events: EventStore
+    @Bindable var library: LibraryStore
+    let showDownloads: (String?) -> Void
+    @SceneStorage("event.selections") private var savedSelections = "{}"
+    @State private var selectionSKU: String?
+    @State private var selection: Set<String> = []
+    @State private var search = ""
+    @State private var division = "all"
+    @State private var round = "all"
+    @State private var day = "all"
+    @State private var hasVideo = false
+    @AppStorage("schedule.sort") private var savedSort = "[]"
+    @State private var sort = [KeyPathComparator(\ScheduleRow.ordinal)]
+    @SceneStorage("schedule.columns.v3") private var columns: TableColumnCustomization<ScheduleRow>
+    @AppStorage("inspector.visible") private var inspector = true
+    @AppStorage("filters.visible") private var filters = true
+    @State private var downloadSheet = false
+    @State private var position: Match?
+    @State private var inspectorTab = "match"
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
+    @AppStorage("download.before") private var before = 5.0
+    @AppStorage("download.offset") private var offset = 0.0
+
+    private var event: EventDetail? { events.event }
+    private var selected: [Match] { event?.matches.filter { selection.contains($0.key) } ?? [] }
+    private var rows: [ScheduleRow] {
+        guard let event else { return [] }
+        let downloads = Dictionary(library.clips.filter { $0.eventRef == event.sku && $0.status != "cancelled" }.map { ($0.matchRef ?? "", $0) }, uniquingKeysWith: { a, _ in a })
+        return event.matches.enumerated().filter { _, m in
+            (division == "all" || m.divisionId == division) && (round == "all" || Labels.round(m.label) == round) && (day == "all" || Labels.day(m) == day) && (!hasVideo || m.available) && MatchQuery.matches(m, query: search)
+        }.map { ScheduleRow(match: $0.element, ordinal: $0.offset, download: downloads[$0.element.key]) }.sorted(using: sort)
+    }
+    var body: some View {
+        VStack(spacing: 0) {
+            if filters { filterBar }
+            scheduleTable
+        }
+        .background(Theme.canvas)
+        .overlay(alignment: .bottom) { statusLine.padding(.bottom, 12).allowsHitTesting(false) }
+        .focusedSceneValue(\.matchActions, MatchActions(preview: { preview(selection) }, position: { position = selected.first }, download: { downloadSheet = true }, hasVideo: selected.contains(where: \.available), singleMatch: selected.count == 1))
+        .navigationTitle(event?.name ?? "Choose an Event")
+        .navigationSubtitle(event.map { "\($0.sku), \(Format.dateRange($0.allDays))" } ?? "")
+        .searchable(text: $search, placement: .toolbar, prompt: "Match or Team")
+        .onSubmit(of: .search) { selection = Set(rows.filter { $0.match.available }.map(\.id)) }
+        .toolbar {
+            ToolbarItemGroup {
+                Button("Refresh Event", systemImage: "arrow.clockwise") { if let sku = event?.sku { Task { await events.load(sku, refresh: true) } } }.disabled(events.loading)
+                Button("Preview", systemImage: "play") { preview(selection) }.disabled(!selected.contains(where: \.available))
+                Button("Set Video Position…", systemImage: "clock") { position = selected.first }.disabled(selected.count != 1)
+            }
+            ToolbarSpacer(.fixed)
+            ToolbarItem { Button("Download…") { downloadSheet = true }.buttonStyle(.glassProminent).disabled(!selected.contains(where: \.available)) }
+            ToolbarSpacer(.fixed)
+            ToolbarItem { Button(inspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right") { inspector.toggle() } }
+        }
+        .inspector(isPresented: $inspector) {
+            VStack(spacing: 0) {
+                Picker("Inspector", selection: $inspectorTab) { Text("Match").tag("match"); Text("Recordings").tag("recordings") }.pickerStyle(.segmented).padding()
+                if inspectorTab == "recordings", let event { RecordingsInspector(event: event, events: events) }
+                else { matchInspector }
+            }.inspectorColumnWidth(min: 280, ideal: 340, max: 480)
+        }
+        .sheet(isPresented: $downloadSheet) { if let event { DownloadSheet(event: event, selected: selected, library: library) } }
+        .sheet(item: $position) { match in if let event { PositionSheet(event: event, match: match, events: events) } }
+        .task(id: event?.sku) {
+            try? await Task.sleep(for: .milliseconds(150))
+            sort = SortPreference.decode(savedSort, choices: sortChoices, fallback: sort)
+            guard let sku = event?.sku else { return }
+            selectionSKU = sku
+            let saved = (try? JSONDecoder().decode([String: [String]].self, from: Data(savedSelections.utf8))) ?? [:]
+            selection = Set(saved[sku] ?? []).intersection(Set(event?.matches.map(\.key) ?? []))
+            division = "all"; day = "all"; round = "all"; search = ""
+            // A single division adds nothing to every row; it stays in the inspector.
+            columns[visibility: "division"] = (event?.divisions.count ?? 0) > 1 ? .visible : .hidden
+        }
+        .onChange(of: sort) { _, value in Task { @MainActor in await Task.yield(); savedSort = SortPreference.encode(value, choices: sortChoices) } }
+        .onChange(of: selection) { _, value in
+            guard let sku = selectionSKU, sku == event?.sku else { return }
+            var saved = (try? JSONDecoder().decode([String: [String]].self, from: Data(savedSelections.utf8))) ?? [:]
+            saved[sku] = value.sorted()
+            if let data = try? JSONEncoder().encode(saved), let text = String(data: data, encoding: .utf8) { Task { @MainActor in await Task.yield(); savedSelections = text } }
+        }
+    }
+    private var scheduleTable: some View {
+            Table(rows, selection: $selection, sortOrder: $sort, columnCustomization: $columns) {
+                TableColumn("Match", value: \.ordinal) { Text(Labels.show($0.match.label)).fontWeight(.semibold).padding(.vertical, 9) }.width(min: 60, ideal: 80, max: 120).customizationID("match")
+                TableColumn("Division", value: \.division).width(min: 80, ideal: 130).customizationID("division")
+                TableColumn("Red Alliance", value: \.redScore, comparator: OptionalLastComparator<Int>()) { row in AllianceCell(alliance: row.match.red, opponent: row.match.blue) }.width(min: 170, ideal: 240).customizationID("red")
+                TableColumn("Blue Alliance", value: \.blueScore, comparator: OptionalLastComparator<Int>()) { row in AllianceCell(alliance: row.match.blue, opponent: row.match.red) }.width(min: 170, ideal: 240).customizationID("blue")
+                TableColumn("Source", value: \.source, comparator: OptionalLastComparator<String>()) { Text($0.source ?? Labels.noPosition($0.match.timing)).foregroundStyle($0.source == nil ? .secondary : .primary) }.width(min: 110, ideal: 160).customizationID("source").defaultVisibility(.hidden)
+                TableColumn("Download", value: \.status, comparator: OptionalLastComparator<String>()) { StatusDot(status: $0.download?.status) }.width(min: 64, ideal: 84, max: 130).customizationID("download")
+            }
+            .overlay { if rows.isEmpty { ContentUnavailableView("No Matching Matches", systemImage: "magnifyingglass", description: Text("Try another search, division, round or day.")).allowsHitTesting(false) } }
+            .tableStyle(.inset(alternatesRowBackgrounds: true))
+            .scrollContentBackground(.hidden)
+            .mutedSelection()
+            .contentMargins(.bottom, 56, for: .scrollContent)
+            .background(TablePersistence(name: "ScheduleTable.v3"))
+            .contextMenu(forSelectionType: String.self) { ids in contextActions(ids) } primaryAction: { ids in preview(ids) }
+            .onKeyPress(.space) { preview(selection); return .handled }
+            .onKeyPress(.return) { preview(selection); return .handled }
+            .onExitCommand { selection = [] }
+    }
+    private var sortChoices: [String: KeyPathComparator<ScheduleRow>] {
+        ["match": KeyPathComparator(\.ordinal), "division": KeyPathComparator(\.division),
+         "red": KeyPathComparator(\.redScore, comparator: OptionalLastComparator<Int>()),
+         "blue": KeyPathComparator(\.blueScore, comparator: OptionalLastComparator<Int>()),
+         "source": KeyPathComparator(\.source, comparator: OptionalLastComparator<String>()),
+         "download": KeyPathComparator(\.status, comparator: OptionalLastComparator<String>())]
+    }
+    private var filterBar: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 10) {
+                Picker("Division", selection: $division) { Text("All Divisions").tag("all"); ForEach(event?.divisions ?? []) { Text($0.name).tag($0.id) } }
+                Picker("Round", selection: $round) {
+                    Text("All Rounds").tag("all")
+                    ForEach([("P", "Practice"), ("Q", "Qualifications"), ("R16", "Round of 16"), ("QF", "Quarterfinals"), ("SF", "Semifinals"), ("F", "Finals")], id: \.0) { key, label in Text(label).tag(key) }
+                }
+                Picker("Day", selection: $day) { Text("All Days").tag("all"); ForEach(Array((event?.allDays ?? []).enumerated()), id: \.element) { Text("Day \($0.offset + 1), \(Format.dayName($0.element))").tag($0.element) } }
+                Toggle("Has Video", isOn: $hasVideo).toggleStyle(.button)
+            }.labelsHidden().pickerStyle(.menu).buttonStyle(.borderless).buttonBorderShape(.capsule).fixedSize()
+            .padding(.horizontal, 12).padding(.vertical, 3).softCapsule()
+            .padding(.horizontal, 12).padding(.vertical, 8)
+        }.scrollIndicators(.hidden).disabled(events.loading)
+    }
+    /// Selection count, and the Return-to-select hint while a search is typed.
+    private var statusLine: some View {
+        let shown = rows
+        let withVideo = shown.filter { $0.match.available }.count
+        let text: String
+        if !selected.isEmpty {
+            let missing = selected.filter { !$0.available }.count
+            text = "\(selected.count) of \(shown.count) selected" + (missing > 0 ? ", \(missing) without video" : "")
+        } else if !search.trimmingCharacters(in: .whitespaces).isEmpty && withVideo > 0 {
+            text = "Press Return to select \(Format.plural(withVideo, "match", "matches")) with video"
+        } else { text = Format.plural(shown.count, "match", "matches") }
+        return Text(text).font(.callout).foregroundStyle(.secondary)
+            .padding(.horizontal, 16).padding(.vertical, 7).floatingCapsule()
+    }
+    @ViewBuilder private var matchInspector: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if selected.count > 1 {
+                    heading("\(selected.count) Matches Selected", "\(selected.filter(\.available).count) with video, \(selected.filter { !$0.available }.count) without")
+                    VStack(alignment: .leading, spacing: 4) { ForEach(selected.prefix(30)) { Text("\(Labels.show($0.label)), \($0.division)") }
+                        if selected.count > 30 { Text("and \(selected.count - 30) more").foregroundStyle(.secondary) } }
+                    Button("Download…") { downloadSheet = true }.disabled(!selected.contains(where: \.available)).inspectorButton()
+                } else if let match = selected.first {
+                    heading(Labels.show(match.label), match.name)
+                    facts([("Division", match.division), ("Day", dayText(match)), ("Field", match.field ?? ""), ("Started", startText(match))])
+                    section("Alliances") {
+                        VStack(spacing: 8) { AllianceCell(alliance: match.red, opponent: match.blue); AllianceCell(alliance: match.blue, opponent: match.red) }
+                            .padding(12).frame(maxWidth: .infinity, alignment: .leading).softCard()
+                    }
+                    section("Video") {
+                        facts([("Position", match.videoPosition.map(Format.clock) ?? "None"), ("Source", match.available ? Labels.source(match) : Labels.noPosition(match.timing))])
+                        if let options = match.streamOptions, !options.isEmpty {
+                            Picker("Recording", selection: Binding(get: { match.streamId ?? "" }, set: { id in events.update { client, sku in try await client.chooseStream(sku: sku, key: match.key, id: id) } })) {
+                                Text("Choose…").tag(""); ForEach(options) { Text($0.label).tag($0.id) }
+                            }
+                        }
+                        ViewThatFits(in: .horizontal) {
+                            HStack { Button("Preview") { preview([match.key]) }.disabled(!match.available).inspectorButton(); Button("Open in Browser") { openInBrowser(match) }.disabled(!match.available).inspectorButton(); Button("Set Video Position…") { position = match }.inspectorButton() }
+                            VStack(alignment: .leading) { Button("Preview") { preview([match.key]) }.disabled(!match.available).inspectorButton(); Button("Open in Browser") { openInBrowser(match) }.disabled(!match.available).inspectorButton(); Button("Set Video Position…") { position = match }.inspectorButton() }
+                        }
+                    }
+                    section("Download") {
+                        if let clip = library.clips.first(where: { $0.eventRef == event?.sku && $0.matchRef == match.key && $0.status != "cancelled" }) {
+                            Text(Labels.status(clip.status))
+                            Button("Show in Downloads") { showDownloads(clip.id) }.inspectorButton()
+                        } else {
+                            Text(match.available ? "Not downloaded." : "Set a video position before downloading.").foregroundStyle(.secondary)
+                            if match.available { Button("Download…") { downloadSheet = true }.inspectorButton() }
+                        }
+                    }
+                } else {
+                    heading(event?.name ?? "Event", event.map { "\($0.sku), \(Format.dateRange($0.allDays))" } ?? "")
+                    facts([("Matches", "\(event?.matches.count ?? 0)"), ("With video", "\(event?.matchesWithVideo ?? 0)"), ("Divisions", event?.divisions.map(\.name).joined(separator: ", ") ?? "")])
+                    Text("Select a match to see its teams, video position and download. Shift-click or Command-click to select several.").foregroundStyle(.secondary)
+                }
+            }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+        }.inspectorColumnWidth(min: 260, ideal: 330, max: 440)
+    }
+    private func heading(_ title: String, _ subtitle: String) -> some View { InspectorHeading(title: title, subtitle: subtitle) }
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View { InspectorSection(title, content: content) }
+    private func facts(_ rows: [(String, String)]) -> some View { InspectorFacts(rows) }
+    private func dayText(_ match: Match) -> String {
+        let day = Labels.day(match)
+        guard !day.isEmpty else { return "—" }
+        let number = (event?.allDays.firstIndex(of: day)).map { "Day \($0 + 1), " } ?? ""
+        return number + Format.dayName(day)
+    }
+    private func startText(_ match: Match) -> String {
+        func time(_ iso: String?) -> String? {
+            guard let iso, let date = ISO8601DateFormatter().date(from: iso) else { return nil }
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        if let started = time(match.started) { return started }
+        if let scheduled = time(match.scheduled) { return "Scheduled \(scheduled)" }
+        return "—"
+    }
+    @ViewBuilder private func contextActions(_ ids: Set<String>) -> some View {
+        let matches = event?.matches.filter { ids.contains($0.key) } ?? []
+        Button("Preview") { preview(ids) }.disabled(!matches.contains(where: \.available))
+        Button("Open in Browser") { if let match = matches.first { openInBrowser(match) } }.disabled(matches.count != 1 || matches.first?.available != true)
+        Button("Set Video Position…") { position = matches.first }.disabled(matches.count != 1)
+        if let match = matches.first, let options = match.streamOptions, !options.isEmpty {
+            Menu("Use Recording") { ForEach(options) { option in Button(option.label) { events.update { client, sku in try await client.chooseStream(sku: sku, key: match.key, id: option.id) } } } }
+        }
+        Divider()
+        Button("Download…") { selection = ids; downloadSheet = true }.disabled(!matches.contains(where: \.available))
+        Button("Copy Match Label") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(matches.map { Labels.show($0.label) + " " + $0.division }.joined(separator: "\n"), forType: .string) }
+    }
+    /// Opens the recording on its own site at the match, for videos that can't play inside the app.
+    private func openInBrowser(_ match: Match) {
+        guard let url = match.url else { return }
+        let item = PreviewItem(title: "", url: url, target: max(0, (match.timestamp ?? 0) + offset - before), port: 0)
+        if let link = item.recordingURL { NSWorkspace.shared.open(link) }
+    }
+    private func preview(_ ids: Set<String>) {
+        guard let match = event?.matches.first(where: { ids.contains($0.key) && $0.available }), let url = match.url, let port = library.client?.baseURL.port else { return }
+        let item = PreviewItem(title: Labels.show(match.label) + ", " + match.division, url: url, target: max(0, (match.timestamp ?? 0) + offset - before), port: port)
+        if PreviewWindows.shared.open.contains(item.id) { dismissWindow(value: item) } else { openWindow(value: item) }
+    }
+}
+
+struct AllianceCell: View {
+    let alliance: Alliance?
+    let opponent: Alliance?
+    private var wins: Bool { (alliance?.score ?? Int.min) > (opponent?.score ?? Int.max) }
+    var body: some View {
+        HStack(spacing: 7) {
+            Circle().fill(alliance?.color == "red" ? Theme.allianceRed : Theme.allianceBlue).frame(width: 7, height: 7).accessibilityHidden(true)
+            Text(alliance?.teams.isEmpty == false ? alliance!.teams.joined(separator: " ") : "TBD").lineLimit(1).help(alliance?.teams.joined(separator: ", ") ?? "Teams to be determined")
+            Spacer(minLength: 6)
+            if let score = alliance?.score {
+                Text(String(score)).monospacedDigit().fontWeight(wins ? .bold : .regular).foregroundStyle(wins || opponent?.score == nil || opponent?.score == score ? .primary : .secondary)
+            }
+        }.accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(alliance?.color.capitalized ?? "") alliance, \(alliance?.teams.joined(separator: ", ") ?? "teams to be determined"), score \(alliance?.score.map(String.init) ?? "not available")\(wins ? ", winner" : "")")
+    }
+}
+
+struct DownloadOptions: View {
+    @AppStorage("download.mode") private var mode = "dynamic"
+    @AppStorage("download.duration") private var duration = 180.0
+    @AppStorage("download.before") private var before = 5.0
+    @AppStorage("download.tail") private var tail = 5.0
+    @AppStorage("download.window") private var window = 480.0
+    @AppStorage("download.offset") private var offset = 0.0
+    var body: some View {
+        Picker("Clip Length", selection: $mode) { Text("Find Start and End").tag("dynamic"); Text("Fixed Length").tag("fixed") }
+        if mode == "fixed" { TextField("Length (seconds)", value: $duration, format: .number) }
+        else {
+            Picker("Search Window", selection: $window) { ForEach([180.0, 300, 480, 600, 1200], id: \.self) { Text("\(Int($0 / 60)) minutes").tag($0) } }
+            TextField("After Match (seconds)", value: $tail, format: .number)
+        }
+        TextField("Before Match (seconds)", value: $before, format: .number)
+        TextField("Shift Position (seconds)", value: $offset, format: .number)
+    }
+}
+struct DownloadSheet: View {
+    let event: EventDetail
+    let selected: [Match]
+    @Bindable var library: LibraryStore
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("download.mode") private var mode = "dynamic"
+    @AppStorage("download.duration") private var duration = 180.0
+    @AppStorage("download.before") private var before = 5.0
+    @AppStorage("download.tail") private var tail = 5.0
+    @AppStorage("download.window") private var window = 480.0
+    @AppStorage("download.offset") private var offset = 0.0
+    @State private var error: String?
+    @State private var busy = false
+    private var available: [Match] { selected.filter(\.available) }
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("Download \(Format.plural(available.count, "Match", "Matches"))").font(.title2)
+            Text(available.prefix(6).map { Labels.show($0.label) + " " + $0.division }.joined(separator: ", "))
+            if selected.count > available.count { Text("\(selected.count - available.count) selected matches have no video position and will be skipped.").foregroundStyle(.secondary) }
+            Form { DownloadOptions() }.formStyle(.grouped)
+            if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
+            HStack { Spacer(); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Download") { queue() }.keyboardShortcut(.defaultAction).disabled(busy || available.isEmpty)
+            }
+        }.padding().frame(width: 480)
+    }
+    private func queue() {
+        guard let client = library.client else { return }; busy = true
+        Task {
+            defer { busy = false }
+            do {
+                let result = try await client.queue(QueueRequest(sku: event.sku, keys: available.map(\.key), mode: mode, duration: duration, before: before, tail: tail, window: window, offset: offset))
+                try await library.refresh(); library.message = "\(result.added.count) added to Downloads; \(result.skipped.count) already there."; dismiss()
+            } catch { self.error = error.localizedDescription }
+        }
+    }
+}
+struct PositionSheet: View {
+    let event: EventDetail
+    let match: Match
+    @Bindable var events: EventStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var url = ""
+    @State private var time = ""
+    @State private var error: String?
+    @State private var busy = false
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("Set Video Position for \(Labels.show(match.label))").font(.title2)
+            Form { TextField("Recording Link", text: $url); TextField("Position (HH:MM:SS)", text: $time) }.formStyle(.grouped)
+            if let error { Text(error).foregroundStyle(.red) }
+            HStack { Spacer(); Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Save Position") { save() }.keyboardShortcut(.defaultAction).disabled(busy || Format.parseClock(time) == nil || url.isEmpty)
+            }
+        }.padding().frame(width: 480)
+        .onAppear { url = match.url ?? ""; time = match.timestamp.map(Format.clock) ?? "" }
+    }
+    private func save() {
+        guard let client = events.client else { return }; busy = true
+        Task {
+            defer { busy = false }
+            do { let result = try await client.calibrate(sku: event.sku, key: match.key, url: url, timestamp: time); if events.event?.sku == event.sku { events.apply(result) }; dismiss() }
+            catch { self.error = error.localizedDescription }
+        }
+    }
+}

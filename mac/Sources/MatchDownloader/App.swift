@@ -1,0 +1,73 @@
+import SwiftUI
+import MatchCore
+
+@MainActor
+final class ApplicationDelegate: NSObject, NSApplicationDelegate {
+    var backend: BackendProcess?
+    func applicationWillTerminate(_ notification: Notification) { backend?.stop() }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
+@main
+struct MatchDownloaderApp: App {
+    @NSApplicationDelegateAdaptor(ApplicationDelegate.self) private var delegate
+    @State private var message = "Connecting to your library…"
+    @State private var ready = false
+    @State private var store = LibraryStore()
+    @Environment(\.scenePhase) private var scenePhase
+    var body: some Scene {
+        WindowGroup("Match Downloader", id: "workspace") {
+            Group {
+                if ready { WorkspaceView(library: store) }
+                else { ContentUnavailableView("Match Downloader", systemImage: "film", description: Text(message)) }
+            }.frame(minWidth: 700, minHeight: 440)
+            .task(id: ready && scenePhase == .active) { if ready && scenePhase == .active { await store.poll() } }
+            .safeAreaInset(edge: .bottom) { if let error = store.error { HStack { Text(error).textSelection(.enabled); Spacer(); Button("Dismiss") { store.error = nil } }.padding().background(.bar) } }
+            .task {
+                guard delegate.backend == nil else { return }
+                do {
+                    let configuration = try BackendConfiguration()
+                    if CommandLine.arguments.contains(where: { $0.hasPrefix("--verify-") || $0 == "--smoke-test" }) {
+                        guard configuration.port == 8799, configuration.data.resolvingSymlinksInPath() != configuration.root.appendingPathComponent("library").resolvingSymlinksInPath() else {
+                            throw APIError.badResponse("Verification requires a copied library and port 8799.")
+                        }
+                    }
+                    let backend = BackendProcess(configuration: configuration)
+                    delegate.backend = backend
+                    try await backend.start()
+                    store.client = backend.configuration.client
+                    try await store.refresh()
+                    let library = try await backend.configuration.client.library()
+                    message = "\(library.clips.count) downloads in your library"; ready = true
+                    if CommandLine.arguments.contains("--verify-recordings") {
+                        try await Verification.recordings(backend.configuration.client)
+                        print("VERIFY_RECORDINGS_PASS")
+                        NSApplication.shared.terminate(nil)
+                    }
+                    if CommandLine.arguments.contains("--verify-schedule") {
+                        try await Verification.schedule(backend.configuration.client)
+                        print("VERIFY_SCHEDULE_PASS")
+                        NSApplication.shared.terminate(nil)
+                    }
+                    if CommandLine.arguments.contains("--verify-downloads") {
+                        try await Verification.downloads(backend.configuration.client)
+                        print("VERIFY_DOWNLOADS_PASS")
+                        NSApplication.shared.terminate(nil)
+                    }
+                    if CommandLine.arguments.contains("--smoke-test") {
+                        print("MATCH_NATIVE_READY owned=\(backend.process != nil)")
+                        try await Task.sleep(for: .seconds(1))
+                        NSApplication.shared.terminate(nil)
+                    }
+                } catch { message = error.localizedDescription; if CommandLine.arguments.contains(where: { $0.hasPrefix("--verify-") || $0 == "--smoke-test" }) { print("VERIFY_FAILED: \(message)"); NSApplication.shared.terminate(nil) } }
+            }
+        }
+        .defaultSize(width: 1280, height: 800)
+        .commands { MatchCommands { if let url = store.client?.baseURL { NSWorkspace.shared.open(url) } } }
+        Settings { AppSettings(library: store) }
+        WindowGroup(for: PreviewItem.self) { $item in if let item { PreviewWindow(item: item) } }
+            .defaultSize(width: 960, height: 540).windowResizability(.contentMinSize)
+        WindowGroup(for: Playback.self) { $item in if let item { PlaybackView(playback: item) } }
+            .defaultSize(width: 960, height: 540).windowResizability(.contentMinSize)
+    }
+}

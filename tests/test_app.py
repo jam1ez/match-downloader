@@ -38,11 +38,40 @@ class Tests(unittest.TestCase):
             with self.assertRaises(RuntimeError):app.downloaded_source(folder)
             (folder/'source.mp4').write_bytes(b'x');self.assertEqual(app.downloaded_source(folder).name,'source.mp4')
             only=Path(tmp)/'one';only.mkdir();(only/'source.webm').write_bytes(b'x');self.assertEqual(app.downloaded_source(only).name,'source.webm')
+    def test_health_reports_api_version(self):
+        with urlopen(Request(self.base+'/api/health')) as r:info=json.load(r)
+        self.assertEqual(info['api'],1)
+    def test_token_file_lifecycle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env=dict(os.environ,MATCH_DOWNLOADER_DATA=tmp);env.pop('MATCH_DOWNLOADER_TOKEN',None)
+            proc=subprocess.Popen([sys.executable,str(Path(app.__file__)),'--port','0','--no-browser'],env=env,stdout=subprocess.PIPE,text=True)
+            try:
+                first=proc.stdout.readline();self.assertIn('running at',first)
+                token_file=Path(tmp)/'.session-token';self.assertTrue(token_file.exists())
+                self.assertEqual(token_file.stat().st_mode&0o777,0o600)
+                token=token_file.read_text();self.assertGreaterEqual(len(token),32)
+                base=first.split('running at ')[1].strip()
+                with urlopen(base+'/api/health') as r:self.assertEqual(json.load(r)['api'],1)
+                with urlopen(Request(base+'/')) as r:self.assertIn(token,r.read().decode())
+                proc.terminate();proc.wait(timeout=10)
+                self.assertFalse(token_file.exists())
+            finally:
+                if proc.poll() is None:proc.kill()
+                proc.stdout.close()
+    def test_token_env_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env=dict(os.environ,MATCH_DOWNLOADER_DATA=tmp,MATCH_DOWNLOADER_TOKEN='fixed-test-token')
+            proc=subprocess.Popen([sys.executable,str(Path(app.__file__)),'--port','0','--no-browser'],env=env,stdout=subprocess.PIPE,text=True)
+            try:
+                proc.stdout.readline();self.assertEqual((Path(tmp)/'.session-token').read_text(),'fixed-test-token')
+            finally:
+                proc.terminate();proc.wait(timeout=10);proc.stdout.close()
     def test_pages_and_health(self):
         def get(path):
             with urlopen(Request(self.base+path)) as r:return r.read().decode()
         self.assertEqual(json.loads(get('/api/health'))['app'],'Match Downloader')
         home=get('/');self.assertIn('<title>Match Downloader</title>',home);self.assertIn('/mac/app.js',home);self.assertNotIn('__TOKEN__',home);self.assertIn(app.TOKEN,home)
+        embed=get('/embed/preview');self.assertIn('/preview.js',embed);self.assertIn('messageHandlers',embed);self.assertIn(app.TOKEN,embed);self.assertNotIn('__TOKEN__',embed)
         self.assertEqual(get('/mac'),home)
         self.assertIn('/next/app.js',get('/next'))
         self.assertIn('ScoutVault · Offline match library',get('/classic'))

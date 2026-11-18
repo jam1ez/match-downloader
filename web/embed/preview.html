@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="token" content="__TOKEN__"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Recording Preview</title>
+<style>html,body,#player{margin:0;width:100%;height:100%;background:#000}iframe,video{border:0;width:100%;height:100%}</style></head>
+<body><div id="player" aria-label="Recording player"></div><script type="module">
+import {createPreview, recordingLink} from '/preview.js';
+const params=new URLSearchParams(location.search), url=params.get('url'), target=Number(params.get('target')||0);
+const emit=state=>window.webkit?.messageHandlers?.preview?.postMessage(state);
+const resolveSource=async(url,signal)=>{
+ const response=await fetch('/api/preview/source',{method:'POST',signal,headers:{'Content-Type':'application/json','X-Scout-Token':document.querySelector('meta[name=token]').content},body:JSON.stringify({url})});
+ const value=await response.json();if(!response.ok)throw Error(value.error||'The recording could not load.');return value;
+};
+try {
+ const player=createPreview(document.getElementById('player'),{url,target,resolveSource,onState:emit});
+ window.matchPreview={jump:()=>player.jump(),currentTime:()=>player.getCurrentTime(),seek:time=>player.seekTo(time),link:()=>recordingLink(url,target),destroy:()=>player.destroy()};
+ window.addEventListener('pagehide',()=>player.destroy(),{once:true});
+ emit({initialized:true,url,target});
+}catch(error){emit({error:error.message});}
+</script></body></html>
