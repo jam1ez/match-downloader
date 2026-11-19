@@ -207,3 +207,13 @@ Before long polish/review: inspect source with apple-design references; improve 
 ## Wrong Vimeo video in preview (2026-11-18)
 - Cause: preview.js took the first number in the path as the Vimeo video id. For vimeo.com/event/<event id>/video/<video id> that is the event id (5938928), which is a different public video ("Camel Strips", 1:47), hence "match time is beyond the end of this recording". Fixed in preview.js (id after /video/), the engine (`boxcast()` rewrites event video links to vimeo.com/<id> before yt-dlp, which had also resolved the wrong video), and the Swift Open in Browser link (vimeo.com/<id>#t=Ns). Tests added (node, Python).
 - The real video is login/embed-restricted on Vimeo, so preview now reports it as unavailable and offers Open in Browser; not verified that Vimeo seeks to the match time.
+
+## Progress bar fill drawn lower than its track (2026-11-18)
+- Screenshot showed the blue fill below the grey track in the inspector. The fill was a scaled capsule in an overlay with a 2.5 s implicit animation, which also animated layout shifts. Replaced with `BarFill`, a shape drawn in the same rectangle as the track, with no animation of its own (it steps as the engine reports). Not verified by looking.
+
+## Playback keys and window size (2026-11-18)
+- Layout unchanged (system AVPlayerView floating controls). The playback window now answers: Space/K play-pause (replays from the start at the end), Left/Right skip 5 s (Shift: 10 s), J/L 10 s, Up/Down volume, M mute, [ / ] speed, , / . frame step, Home/0 start, End end, F full screen, Esc exit full screen or close. Space no longer closes the window. Command/Control/Option combinations are left to the menu bar.
+- `KeyPlayerView` (AVPlayerView subclass) takes first responder and routes keyDown; `PlaybackMath` in MatchCore holds the clamping/speed arithmetic (unit tested). `--verify-player <mp4>` checks every command against a real AVPlayer plus the key mapping: passes. Not verified by pressing keys in a live window.
+- Default playback window 1120x630 (was 960x540); the preview window is unchanged.
+
+- Arrow keys fix: AVPlayerView hands focus to an inner view (AVDesktopPlayerViewContentView) that steps one frame per arrow press, so a keyDown override never saw them. `KeyPlayerView` now installs a window-scoped local key monitor that answers first (plus performKeyEquivalent/keyDown as backups). `--verify-player` now sends real key events through the application to a window holding the player: right arrow +5 s, left -5 s, shift-right +10 s, space play/pause: passes. A first version without the monitor failed that same test (one frame).

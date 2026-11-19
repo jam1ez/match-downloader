@@ -181,17 +181,19 @@ struct DownloadInspector: View {
 /// AVKit itself, and the app aborted at launch of any player window (a missing AVPlayerView superclass).
 struct NativePlayerView: NSViewRepresentable {
     let player: AVPlayer
+    /// When true the view also answers the playback keys (space, arrows, J/K/L ...). The layout is unchanged.
+    var keyboard = false
     func makeNSView(context: Context) -> AVPlayerView {
-        let view = AVPlayerView()
+        let view = KeyPlayerView()
         view.controlsStyle = .floating
         view.player = player
+        if keyboard { view.handle = { command, window in PlayerController.perform(command, on: player, window: window) } }
         return view
     }
     func updateNSView(_ view: AVPlayerView, context: Context) {
         if view.player !== player { view.player = player }
     }
 }
-
 struct Playback: Codable, Hashable, Identifiable {
     let id: String
     let title: String
@@ -203,11 +205,10 @@ struct PlaybackView: View {
     @State private var ratio: CGFloat = 16.0 / 9.0
     @Environment(\.dismissWindow) private var dismissWindow
     var body: some View {
-        NativePlayerView(player: player)
+        NativePlayerView(player: player, keyboard: true)
             .ignoresSafeArea()
             .background(WindowAspect(ratio: ratio))
             .navigationTitle(playback.title).frame(minWidth: 480, minHeight: 270)
-            .onKeyPress(.space) { dismissWindow(value: playback); return .handled }
             .onAppear { player.replaceCurrentItem(with: AVPlayerItem(url: playback.url)); player.play() }
             .onDisappear { player.pause(); player.replaceCurrentItem(with: nil) }
             .task {

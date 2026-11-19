@@ -116,3 +116,15 @@ func fixture<T: Decodable>(_ name: String, as: T.Type = T.self) throws -> T {
     #expect(vimeo.contains("wants a login") && vimeo.contains("Livestream"))
     #expect(Labels.failure("ERROR: [youtube] abc: Video unavailable") == "abc: Video unavailable")
 }
+
+@Test func playbackShortcutsClampAndStepSensibly() {
+    #expect(PlaybackMath.seekTarget(current: 3, delta: -5, duration: 60) == 0)
+    #expect(PlaybackMath.seekTarget(current: 58, delta: 5, duration: 60) == 60)
+    #expect(PlaybackMath.seekTarget(current: 20, delta: 5, duration: 60) == 25)
+    #expect(PlaybackMath.seekTarget(current: 20, delta: 5, duration: nil) == 25)
+    #expect(PlaybackMath.nextRate(from: 1, up: true) == 1.25 && PlaybackMath.nextRate(from: 1, up: false) == 0.75)
+    #expect(PlaybackMath.nextRate(from: 2, up: true) == 2 && PlaybackMath.nextRate(from: 0.5, up: false) == 0.5)
+    #expect(PlaybackMath.nextRate(from: 1.1, up: true) == 1.25)
+    #expect(PlaybackMath.volume(0.5, delta: 0.1) == 0.6 && PlaybackMath.volume(0.95, delta: 0.1) == 1 && PlaybackMath.volume(0.05, delta: -0.1) == 0)
+    #expect(PlaybackMath.isAtEnd(current: 59.95, duration: 60) && !PlaybackMath.isAtEnd(current: 30, duration: 60))
+}
