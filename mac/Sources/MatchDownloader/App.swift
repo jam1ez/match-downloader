@@ -41,6 +41,11 @@ struct MatchDownloaderApp: App {
             .task(id: ready && scenePhase == .active) { if ready && scenePhase == .active { await store.poll() } }
             .safeAreaInset(edge: .bottom) { if let error = store.error { HStack { Text(error).textSelection(.enabled); Spacer(); Button("Dismiss") { store.error = nil } }.padding().background(.bar) } }
             .task {
+                if let flag = CommandLine.arguments.firstIndex(of: "--verify-player"), CommandLine.arguments.indices.contains(flag + 1) {
+                    do { try await PlayerVerification.run(url: URL(fileURLWithPath: CommandLine.arguments[flag + 1])); print("VERIFY_PLAYER_PASS") }
+                    catch { print("VERIFY_FAILED: \(error)") }
+                    NSApplication.shared.terminate(nil); return
+                }
                 guard delegate.backend == nil else { return }
                 do {
                     let configuration = try BackendConfiguration()
@@ -85,6 +90,6 @@ struct MatchDownloaderApp: App {
         WindowGroup(for: PreviewItem.self) { $item in if let item { PreviewWindow(item: item) } }
             .defaultSize(width: 960, height: 540).windowResizability(.contentMinSize)
         WindowGroup(for: Playback.self) { $item in if let item { PlaybackView(playback: item) } }
-            .defaultSize(width: 960, height: 540).windowResizability(.contentMinSize)
+            .defaultSize(width: 1120, height: 630).windowResizability(.contentMinSize)
     }
 }
