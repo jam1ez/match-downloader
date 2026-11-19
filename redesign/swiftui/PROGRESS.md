@@ -217,3 +217,7 @@ Before long polish/review: inspect source with apple-design references; improve 
 - Default playback window 1120x630 (was 960x540); the preview window is unchanged.
 
 - Arrow keys fix: AVPlayerView hands focus to an inner view (AVDesktopPlayerViewContentView) that steps one frame per arrow press, so a keyDown override never saw them. `KeyPlayerView` now installs a window-scoped local key monitor that answers first (plus performKeyEquivalent/keyDown as backups). `--verify-player` now sends real key events through the application to a window holding the player: right arrow +5 s, left -5 s, shift-right +10 s, space play/pause: passes. A first version without the monitor failed that same test (one frame).
+
+## Keyboard control in the recording preview
+- The recording preview (YouTube, Vimeo and BoxCast/Worlds streams) now answers the same keys as the playback window: space or K play/pause, arrows skip 5 s (Shift: 10 s) and change volume, J/L 10 s, M mute, `[`/`]` speed, 0/Home restart, F full screen, Esc close. Space no longer closes the window.
+- `KeyRouter` (window-scoped key monitor) is shared by `KeyPlayerView` and the new `KeyWebView`; `web/preview.js` gained `control()` with adapters for YouTube, Vimeo and plain video; tested in `tests/test_preview.mjs` and the headless `--verify-player` check.

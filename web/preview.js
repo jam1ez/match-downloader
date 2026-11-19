@@ -51,6 +51,14 @@ export function recordingLink(url,target) {
   else if(/\.(mp4|webm|m3u8)(?:$|\?)/i.test(u.pathname))u.hash='t='+t;
   return u.href;
 }
+const RATES=[0.5,0.75,1,1.25,1.5,2];
+const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
+/** The next speed up (direction 1) or down (-1) from the current one. */
+export function nextRate(current,direction){
+  const i=RATES.findIndex(r=>r>=current-1e-6);
+  const at=i<0?RATES.length-1:i;
+  return RATES[clamp(at+direction,0,RATES.length-1)];
+}
 export function createPreview(container,{url,target,resolveSource,onState=()=>{}}) {
   if (!Number.isFinite(target)||target<0) throw Error('The match has no valid preview time.');
   let stopped=false,failed=false,player=null,hls=null,timer=null,adapter=null,firstPlay=true,pending=true,attempts=0;
@@ -90,7 +98,11 @@ export function createPreview(container,{url,target,resolveSource,onState=()=>{}
           if(stopped)return;
           const yt=event.target;
           yt.cueVideoById({videoId:p.id,startSeconds:target});
-          ready({seek:t=>yt.seekTo(t,true),time:()=>yt.getCurrentTime(),duration:()=>yt.getDuration(),playing:()=>yt.getPlayerState()===1});
+          ready({seek:t=>yt.seekTo(t,true),time:()=>yt.getCurrentTime(),duration:()=>yt.getDuration(),playing:()=>yt.getPlayerState()===1,
+            toggle:()=>yt.getPlayerState()===1?yt.pauseVideo():yt.playVideo(),
+            volume:d=>{yt.unMute();yt.setVolume(clamp(yt.getVolume()+d*100,0,100));},
+            mute:()=>yt.isMuted()?yt.unMute():yt.mute(),
+            rate:d=>yt.setPlaybackRate(nextRate(yt.getPlaybackRate(),d))});
         },onStateChange:event=>{if(!stopped&&event.data===1)played();},onError:event=>{
           const code=Number(event.data);
           const reason=code===101||code===150?'The video owner has disabled playback inside other apps.':code===100?'This video was removed or is private.':code===153?'YouTube rejected this player’s identification.':'YouTube cannot play this recording.';
@@ -101,7 +113,11 @@ export function createPreview(container,{url,target,resolveSource,onState=()=>{}
       const frame=document.createElement('iframe');frame.src=p.url;frame.title='Match recording';frame.allow='autoplay; fullscreen; picture-in-picture';frame.allowFullscreen=true;container.append(frame);
       player=new window.Vimeo.Player(frame);await player.ready();if(stopped)return;
       player.on('play',played);player.on('error',fail);
-      ready({seek:t=>player.setCurrentTime(t),time:()=>player.getCurrentTime(),duration:()=>player.getDuration(),playing:async()=>!(await player.getPaused())});
+      ready({seek:t=>player.setCurrentTime(t),time:()=>player.getCurrentTime(),duration:()=>player.getDuration(),playing:async()=>!(await player.getPaused()),
+        toggle:async()=>(await player.getPaused())?player.play():player.pause(),
+        volume:async d=>{await player.setMuted(false);await player.setVolume(clamp((await player.getVolume())+d,0,1));},
+        mute:async()=>player.setMuted(!(await player.getMuted())),
+        rate:async d=>player.setPlaybackRate(nextRate(await player.getPlaybackRate(),d))});
     }else{
       emit({ready:false,loading:'Preparing recording…'});
       let src=url;
@@ -110,7 +126,11 @@ export function createPreview(container,{url,target,resolveSource,onState=()=>{}
       }
       if(stopped)return;
       const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='metadata';container.append(video);player=video;
-      const attach=()=>ready({seek:t=>{video.currentTime=t;},time:()=>video.currentTime,duration:()=>video.duration,playing:()=>!video.paused});
+      const attach=()=>ready({seek:t=>{video.currentTime=t;},time:()=>video.currentTime,duration:()=>video.duration,playing:()=>!video.paused,
+        toggle:()=>video.paused?video.play():video.pause(),
+        volume:d=>{video.muted=false;video.volume=clamp(video.volume+d,0,1);},
+        mute:()=>{video.muted=!video.muted;},
+        rate:d=>{video.playbackRate=nextRate(video.playbackRate,d);}});
       video.addEventListener('loadedmetadata',attach,{once:true});
       video.addEventListener('play',played);video.addEventListener('seeked',tick);
       video.addEventListener('error',()=>fail(Error('This recording could not play in the browser. Try the original recording or download it for offline playback.')));
@@ -123,5 +143,23 @@ export function createPreview(container,{url,target,resolveSource,onState=()=>{}
     }
   }
   setup().catch(e=>{if(e.name!=='AbortError')fail(e);});
-  return {jump,async getCurrentTime(){if(!adapter||stopped)throw Error('Wait for the recording player to load.');return await adapter.time();},async seekTo(time){if(!adapter||stopped)throw Error('Wait for the recording player to load.');pending=false;await adapter.seek(Math.max(0,time));},destroy(){stopped=true;abort.abort();clearInterval(timer);hls?.destroy();try{if(player?.destroy)player.destroy();else if(player?.pause){player.pause();player.removeAttribute('src');player.load();}}catch{}container.replaceChildren();}};
+  /** Keyboard commands from the app: toggle, skip (seconds, relative), volume (-1…1 step), mute, rate (±1), restart. */
+  async function control(command,value=0){
+    if(!adapter||stopped)return;
+    try {
+      if(command==='toggle')await adapter.toggle();
+      else if(command==='skip'){
+        pending=false;
+        const duration=Number(await adapter.duration());
+        const to=clamp((await adapter.time())+value,0,Number.isFinite(duration)&&duration>0?duration:Infinity);
+        await adapter.seek(to);
+      }
+      else if(command==='restart'){pending=false;await adapter.seek(0);}
+      else if(command==='volume')await adapter.volume(value);
+      else if(command==='mute')await adapter.mute();
+      else if(command==='rate')await adapter.rate(value);
+      await tick();
+    }catch{/* a key the player can't act on is not a playback failure */}
+  }
+  return {jump,control,async getCurrentTime(){if(!adapter||stopped)throw Error('Wait for the recording player to load.');return await adapter.time();},async seekTo(time){if(!adapter||stopped)throw Error('Wait for the recording player to load.');pending=false;await adapter.seek(Math.max(0,time));},destroy(){stopped=true;abort.abort();clearInterval(timer);hls?.destroy();try{if(player?.destroy)player.destroy();else if(player?.pause){player.pause();player.removeAttribute('src');player.load();}}catch{}container.replaceChildren();}};
 }
