@@ -1,0 +1,28 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "srgb:0.27059,0.27843,0.30588,1.00000",
+      "srgb:0.08627,0.09020,0.10196,1.00000"
+    ]
+  },
+  "groups" : [
+    {
+      "layers" : [
+        { "image-name" : "play.png", "name" : "play" }
+      ],
+      "shadow" : { "kind" : "neutral", "opacity" : 0.5 },
+      "translucency" : { "enabled" : true, "value" : 0.4 }
+    },
+    {
+      "layers" : [
+        { "image-name" : "red.png", "name" : "red" },
+        { "image-name" : "blue.png", "name" : "blue" }
+      ],
+      "shadow" : { "kind" : "layer-color", "opacity" : 0.5 },
+      "translucency" : { "enabled" : true, "value" : 0.3 }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [ "macOS" ]
+  }
+}

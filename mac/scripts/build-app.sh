@@ -24,6 +24,7 @@ cat > "$BUNDLE/Contents/Info.plist" <<'PLIST'
 <key>CFBundleDisplayName</key><string>Match Downloader</string>
 <key>CFBundleExecutable</key><string>Match Downloader</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
+<key>CFBundleIconName</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>1.0</string>
 <key>CFBundleVersion</key><string>1</string>
@@ -32,16 +33,10 @@ cat > "$BUNDLE/Contents/Info.plist" <<'PLIST'
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>
 PLIST
-ICONSET="$STAGE/AppIcon.iconset"
-mkdir -p "$ICONSET" "$ROOT/mac/Resources"
-swift "$ROOT/mac/scripts/make-icon.swift" "$STAGE/icon.png"
-for SIZE in 16 32 128 256 512; do
-    sips -z "$SIZE" "$SIZE" "$STAGE/icon.png" --out "$ICONSET/icon_${SIZE}x${SIZE}.png" >/dev/null
-    DOUBLE=$((SIZE * 2))
-    sips -z "$DOUBLE" "$DOUBLE" "$STAGE/icon.png" --out "$ICONSET/icon_${SIZE}x${SIZE}@2x.png" >/dev/null
-done
-iconutil -c icns "$ICONSET" -o "$ROOT/mac/Resources/AppIcon.icns"
-cp "$ROOT/mac/Resources/AppIcon.icns" "$BUNDLE/Contents/Resources/AppIcon.icns"
+# Liquid Glass icon: compile the Icon Composer file (layers in AppIcon.icon/Assets, drawn by make-icon.swift)
+# into Assets.car, plus AppIcon.icns for anything that still reads the old format.
+xcrun actool "$ROOT/mac/Resources/AppIcon.icon" --compile "$BUNDLE/Contents/Resources" --platform macosx \
+    --minimum-deployment-target 26.0 --app-icon AppIcon --output-partial-info-plist "$STAGE/icon.plist" >/dev/null
 xattr -cr "$BUNDLE"
 codesign --force --sign - "$BUNDLE"
 codesign --verify --strict "$BUNDLE"

@@ -14,8 +14,6 @@ enum Theme {
                            blue: CGFloat(hex & 0xff) / 255, alpha: 1)
         })
     }
-    /// Window content behind tables and lists (--canvas).
-    static let canvas = dynamic(light: 0xfbfbfd, dark: 0x1c1c1e)
     static let allianceRed = dynamic(light: 0xe5322d, dark: 0xff5a52)
     static let allianceBlue = dynamic(light: 0x1677ff, dark: 0x3d9bff)
     /// Muted grey used for selected table rows instead of the saturated accent colour.
@@ -31,10 +29,8 @@ extension View {
     func softCapsule() -> some View {
         background(Theme.fill, in: .capsule).overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 0.5))
     }
-    /// A capsule that floats over scrolling rows, so it needs a material behind it.
-    func floatingCapsule() -> some View {
-        background(.regularMaterial, in: .capsule).overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 0.5))
-    }
+    /// A capsule that floats over scrolling rows: Liquid Glass, so it reads over whatever is beneath.
+    func floatingCapsule() -> some View { glassEffect(.regular, in: .capsule) }
     /// A rounded card with a soft fill and hairline edge (alliance scorecards, notes).
     func softCard(radius: CGFloat = 12) -> some View {
         background(Theme.fill, in: .rect(cornerRadius: radius))

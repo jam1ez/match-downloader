@@ -64,8 +64,8 @@ struct WorkspaceView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: CatalogueRefresh.updated)) { _ in Task { await events.catalogue() } }
         .onChange(of: route) { _, sku in Task { @MainActor in await Task.yield(); lastRoute = sku }; if sku != "downloads", sku != "clip", sku != events.event?.sku { Task { await events.load(sku) } } }
-        .safeAreaInset(edge: .bottom) {
-            if let error = events.error { HStack { Text(error).textSelection(.enabled); Spacer(); Button("Dismiss") { events.error = nil } }.padding().background(.bar) }
+        .safeAreaBar(edge: .bottom) {
+            if let error = events.error { HStack { Text(error).textSelection(.enabled); Spacer(); Button("Dismiss") { events.error = nil } }.padding() }
         }
     }
     /// Collapsible sections stay open while searching so matches are never hidden.
