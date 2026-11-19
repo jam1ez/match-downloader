@@ -51,7 +51,7 @@ struct ClipLinkView: View {
     private var valid: Bool {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let parsed = URLComponents(string: url), ["http", "https"].contains(parsed.scheme), parsed.host != nil, parsed.user == nil, parsed.password == nil,
               let a = Format.parseClock(start), let b = Format.parseClock(end) else { return false }
-        return b > a && b - a <= 3600
+        return b - a >= 1 && b - a <= 3600
     }
     private func queueClip() {
         guard let client = library.client else { return }; busy = true; error = nil

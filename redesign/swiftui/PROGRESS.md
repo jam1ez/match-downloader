@@ -221,3 +221,13 @@ Before long polish/review: inspect source with apple-design references; improve 
 ## Keyboard control in the recording preview
 - The recording preview (YouTube, Vimeo and BoxCast/Worlds streams) now answers the same keys as the playback window: space or K play/pause, arrows skip 5 s (Shift: 10 s) and change volume, J/L 10 s, M mute, `[`/`]` speed, 0/Home restart, F full screen, Esc close. Space no longer closes the window.
 - `KeyRouter` (window-scoped key monitor) is shared by `KeyPlayerView` and the new `KeyWebView`; `web/preview.js` gained `control()` with adapters for YouTube, Vimeo and plain video; tested in `tests/test_preview.mjs` and the headless `--verify-player` check.
+
+
+## Audit fixes: cancellation, event state, recovery, duration (2026-11-19)
+- Cancelling a queued adjustment restores the saved clip's bounds, mode, detection settings and ready state under the worker lock. Worker claims now read and transition the row under that lock; adjustment steps check cancellation before changing status.
+- Event busy state belongs to the current operation. Switching events releases the previous operation's UI state; stale timing/edit completions cannot clear a newer operation or publish an old edit error.
+- Library connection errors clear after a successful poll. Operation failures remain available, and the FFmpeg warning follows the latest engine response.
+- Manual clip creation enforces 1-3600 seconds in the engine and native form.
+- Regression checks reproduced the four original failures before fixes. Working-tree validation: 86 Python tests, 19 Swift tests and 6 Node preview tests pass. Swift build/test output has no warnings. Python retains the previously recorded unclosed SQLite connection ResourceWarning.
+- Exact staged source: 84 Python tests, 18 Swift tests and 6 Node preview tests pass. Release bundle builds and passes codesign --verify --deep --strict. The clean checkout reports three pre-existing SwiftPM warnings for absent Watermarks Cleaned exclude folders; no Swift compiler warnings.
+- Tests use temporary libraries and controlled responses. No real library changes, live provider validation or visual checks. Existing unrelated edits remain unstaged.

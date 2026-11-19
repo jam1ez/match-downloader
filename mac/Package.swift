@@ -13,6 +13,7 @@ let package = Package(
     targets: [
         .target(name: "MatchCore", exclude: ["Watermarks Cleaned"]),
         .executableTarget(name: "MatchDownloader", dependencies: ["MatchCore"], exclude: ["Watermarks Cleaned"]),
+        .testTarget(name: "MatchDownloaderTests", dependencies: ["MatchDownloader", "MatchCore"]),
         .testTarget(
             name: "MatchCoreTests",
             dependencies: ["MatchCore"],
