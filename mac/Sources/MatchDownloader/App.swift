@@ -85,7 +85,7 @@ struct MatchDownloaderApp: App {
             }
         }
         .defaultSize(width: 1280, height: 800)
-        .commands { MatchCommands { if let url = store.client?.baseURL { NSWorkspace.shared.open(url) } } }
+        .commands { MatchCommands() }
         Settings { AppSettings(library: store) }
         WindowGroup(for: PreviewItem.self) { $item in if let item { PreviewWindow(item: item) } }
             .defaultSize(width: 960, height: 540).windowResizability(.contentMinSize)

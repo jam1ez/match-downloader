@@ -75,6 +75,8 @@ final class BackendProcess {
         var env = ProcessInfo.processInfo.environment
         env["MATCH_DOWNLOADER_DATA"] = configuration.data.path
         env["MATCH_DOWNLOADER_MANAGED"] = "1"
+        // Settings → General → Downloads at Once; an environment variable set by hand still wins.
+        if env["MATCH_DOWNLOADER_PARALLEL"] == nil, let parallel = EngineSettings.parallel() { env["MATCH_DOWNLOADER_PARALLEL"] = String(parallel) }
         env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + (env["PATH"] ?? "/usr/bin:/bin")
         p.environment = env; p.standardOutput = log; p.standardError = log
         try p.run(); process = p
