@@ -74,6 +74,7 @@ final class LibraryStore {
         }
     }
     private func notify(_ clip: Clip) async {
+        guard DownloadNotifications.enabled() else { return }
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized else { return }
