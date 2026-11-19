@@ -6,7 +6,7 @@
 __pycache__/
 *.pyc
 
-# Build output: rebuild the Mac app with tools/build-mac-app.sh
+# Build output: rebuild the Mac app with mac/scripts/build-app.sh
 /Match Downloader.app/Contents/MacOS/
 
 # Locally installed agent skills (third-party)

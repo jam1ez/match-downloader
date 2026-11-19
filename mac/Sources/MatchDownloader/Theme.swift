@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import MatchCore
 
-/// The soft charcoal look of the first version (web/mac/app.css), built on system components:
+/// The soft charcoal look of the web version (web/mac/app.css), built on system components:
 /// quiet fills with hairline edges, grey table selection, and compact controls. Colors that the
 /// system already provides (text, materials, sidebar and inspector panels) are left to the system.
 enum Theme {

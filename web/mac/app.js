@@ -1,4 +1,4 @@
-// Match Downloader, macOS-style prototype. Same local API as web/index.html and web/next.
+// Match Downloader, web version. Uses the engine's local JSON API, like the Mac app.
 import {createPreview, recordingLink} from '/preview.js';
 
 const token = document.querySelector('meta[name=token]').content;

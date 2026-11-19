@@ -53,7 +53,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer mac/scripts/build-app.s
 python3 -m unittest discover -s tests -v
 ```
 
-The app source is in `mac/` (Xcode 26, Swift 6). Test against a copy of the library on another port with `--data` and `--port`, never two engines on one library. Settings → Advanced → Open Web Version in Browser opens the older web version.
+The app source is in `mac/` (Xcode 26, Swift 6). Test against a copy of the library on another port with `--data` and `--port`, never two engines on one library. Settings → Advanced → Open Web Version in Browser opens the same library in a browser.
 
 ## License
 

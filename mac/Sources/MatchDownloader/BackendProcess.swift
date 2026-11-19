@@ -39,7 +39,7 @@ struct BackendConfiguration: Sendable {
 /// Mac-only process ownership: never terminates a server this app merely attached to.
 @MainActor
 final class BackendProcess {
-    /// The engine version this app needs (`API_VERSION` in app.py).
+    /// The engine version this app needs (`API_VERSION` in jobs.py).
     static let engineAPI = 3
     let configuration: BackendConfiguration
     private(set) var process: Process?

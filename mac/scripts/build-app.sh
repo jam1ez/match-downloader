@@ -45,6 +45,8 @@ if [[ -e "$DEST" ]]; then
     BACKUP="$ROOT/mac/.build/previous-bundle-$(date +%s)"
     mkdir -p "$BACKUP"
     mv "$DEST" "$BACKUP/Match Downloader.app"
+    # Keep only the two most recent backups.
+    ls -1d "$ROOT"/mac/.build/previous-bundle-* 2>/dev/null | sort -r | tail -n +3 | while IFS= read -r OLD; do rm -rf "$OLD"; done
 fi
 mv "$BUNDLE" "$DEST"
 # File-provider metadata may be attached when moving into Documents.

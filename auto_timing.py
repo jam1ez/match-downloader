@@ -37,7 +37,17 @@ def metadata(info):
         url=e.get('webpage_url') or e.get('url') or ('https://www.youtube.com/watch?v='+e['id'] if e.get('id') else '')
         if not str(url).startswith('http') and e.get('id'):url='https://www.youtube.com/watch?v='+e['id']
         if str(url).startswith('http'):recordings.append({'title':e.get('title'),'url':url})
-    return {'title':info.get('title'),'channel':info.get('channel') or info.get('uploader'),'duration':info.get('duration'),'wasLive':was_live or boxcast,'liveStatus':info.get('live_status'),'startEstimate':start,'startSource':'broadcast release time' if start else None,'recordings':recordings,'checked':time.time()}
+    return {
+        'title':info.get('title'),
+        'channel':info.get('channel') or info.get('uploader'),
+        'duration':info.get('duration'),
+        'wasLive':was_live or boxcast,
+        'liveStatus':info.get('live_status'),
+        'startEstimate':start,
+        'startSource':'broadcast release time' if start else None,
+        'recordings':recordings,
+        'checked':time.time(),
+    }
 
 def probe(url,cache_dir=None):
     url=canonical(video_url(url));key=hashlib.sha256(url.encode()).hexdigest()

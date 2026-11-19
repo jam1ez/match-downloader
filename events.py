@@ -58,7 +58,23 @@ def normalize(row, divisions=None):
     for alliance in row.get('alliances') or []:
         group=[str((t.get('team') or {}).get('name','')) for t in alliance.get('teams',[])]
         teams+=group;scores.append({'color':alliance.get('color'),'teams':group,'score':alliance.get('score')})
-    return {'key':str(div)+':'+str(row['id']),'id':row['id'],'name':row.get('name',''),'label':label(row.get('name',''),row),'divisionId':str(div),'division':(divisions or {}).get(str(div),(row.get('division') or {}).get('name','Division '+str(div))),'timestamp':timestamp if good else None,'url':url,'available':bool(good and url),'teams':teams,'alliances':scores,'field':row.get('field') or '', 'scheduled':row.get('scheduled'),'started':row.get('started'),'timing':row.get('timing','Jumper') if good else 'Needs timing'}
+    return {
+        'key':str(div)+':'+str(row['id']),
+        'id':row['id'],
+        'name':row.get('name',''),
+        'label':label(row.get('name',''),row),
+        'divisionId':str(div),
+        'division':(divisions or {}).get(str(div),(row.get('division') or {}).get('name','Division '+str(div))),
+        'timestamp':timestamp if good else None,
+        'url':url,
+        'available':bool(good and url),
+        'teams':teams,
+        'alliances':scores,
+        'field':row.get('field') or '',
+        'scheduled':row.get('scheduled'),
+        'started':row.get('started'),
+        'timing':row.get('timing','Jumper') if good else 'Needs timing',
+    }
 
 class Events:
     def __init__(self, root):
@@ -143,7 +159,27 @@ class Events:
                 if previous.get('timing') in ('Manual calibration','Recording calibration'):
                     for k in ('timestamp','url','available','timing'):m[k]=previous[k]
                     m['_manualVideo']={k:previous[k] for k in ('timestamp','url','available','timing')}
-        data={'sku':sku,'name':(event or {}).get('name') or (preset or {}).get('name') or sku,'divisions':[{'id':id,'name':name} for id,name in sorted(({m['divisionId']:m['division'] for m in matches} or divs).items())],'matches':sorted(matches,key=match_order),'fetched':time.time(),'warning':warning, 'cached':False,'id':(event or {}).get('id'),'start':(event or {}).get('start') or (cached or {}).get('start'),'end':(event or {}).get('end') or (cached or {}).get('end'),'program':(event or {}).get('program'),'location':(event or {}).get('location'),'sourceUrl':'https://events.vex.com/robot-competitions/'+('vex-iq-competition/' if any(t in sku for t in ('VIQ','VE-IQ')) else 'vex-robotics-competition/')+sku+'.html','streams':(cached or {}).get('streams',[]),'streamChoices':(cached or {}).get('streamChoices',{}),'discovery':(cached or {}).get('discovery'),'autoTiming':(cached or {}).get('autoTiming'),'recordingDurations':(cached or {}).get('recordingDurations',{}),'timingOffset':(cached or {}).get('timingOffset',0)}
+        data={
+            'sku':sku,
+            'name':(event or {}).get('name') or (preset or {}).get('name') or sku,
+            'divisions':[{'id':id,'name':name} for id,name in sorted(({m['divisionId']:m['division'] for m in matches} or divs).items())],
+            'matches':sorted(matches,key=match_order),
+            'fetched':time.time(),
+            'warning':warning,
+            'cached':False,
+            'id':(event or {}).get('id'),
+            'start':(event or {}).get('start') or (cached or {}).get('start'),
+            'end':(event or {}).get('end') or (cached or {}).get('end'),
+            'program':(event or {}).get('program'),
+            'location':(event or {}).get('location'),
+            'sourceUrl':'https://events.vex.com/robot-competitions/'+('vex-iq-competition/' if any(t in sku for t in ('VIQ','VE-IQ')) else 'vex-robotics-competition/')+sku+'.html',
+            'streams':(cached or {}).get('streams',[]),
+            'streamChoices':(cached or {}).get('streamChoices',{}),
+            'discovery':(cached or {}).get('discovery'),
+            'autoTiming':(cached or {}).get('autoTiming'),
+            'recordingDurations':(cached or {}).get('recordingDurations',{}),
+            'timingOffset':(cached or {}).get('timingOffset',0),
+        }
         apply_streams(data);self.write(sku,data);return data
     def calibrate(self,sku,key,url,timestamp):
         data=self.read(self.sku(sku))
