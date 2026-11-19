@@ -42,7 +42,18 @@ struct EventView: View {
 
     private var event: EventDetail? { events.event }
     private var selected: [Match] { event?.matches.filter { selection.contains($0.key) } ?? [] }
-    private var rows: [ScheduleRow] {
+    /// Built once per change of the event, downloads, filters, search or sort, not on every redraw
+    /// (library polls and keystrokes redraw the view far more often than any of those change).
+    @State private var rows: [ScheduleRow] = []
+    @State private var rowsBuilt: RowInputs?
+    private struct RowInputs: Equatable {
+        var event: Int, clips: Int, division: String, round: String, day: String, hasVideo: Bool, search: String
+        var sort: [KeyPathComparator<ScheduleRow>]
+    }
+    private var rowInputs: RowInputs {
+        RowInputs(event: events.eventVersion, clips: library.clipsVersion, division: division, round: round, day: day, hasVideo: hasVideo, search: search, sort: sort)
+    }
+    private func makeRows() -> [ScheduleRow] {
         guard let event else { return [] }
         let downloads = Dictionary(library.clips.filter { $0.eventRef == event.sku && $0.status != "cancelled" }.map { ($0.matchRef ?? "", $0) }, uniquingKeysWith: { a, _ in a })
         return event.matches.enumerated().filter { _, m in
@@ -60,7 +71,16 @@ struct EventView: View {
         .navigationTitle(event?.name ?? "Choose an Event")
         .navigationSubtitle(event.map { "\($0.sku), \(Format.dateRange($0.allDays))" } ?? "")
         .searchable(text: $search, placement: .toolbar, prompt: "Match or Team")
-        .onSubmit(of: .search) { selection = Set(rows.filter { $0.match.available }.map(\.id)) }
+        .onSubmit(of: .search) { rows = makeRows(); rowsBuilt = rowInputs; selection = Set(rows.filter { $0.match.available }.map(\.id)) }
+        .task(id: rowInputs) {
+            let inputs = rowInputs
+            guard inputs != rowsBuilt else { return }
+            // Typing in search waits for a short pause; every other change shows at once.
+            if let built = rowsBuilt, built.search != inputs.search {
+                do { try await Task.sleep(for: .milliseconds(150)) } catch { return }
+            }
+            rows = makeRows(); rowsBuilt = inputs
+        }
         .toolbar {
             ToolbarItemGroup {
                 Button("Refresh Event", systemImage: "arrow.clockwise") { if let sku = event?.sku { Task { await events.load(sku, refresh: true) } } }.disabled(events.loading)
@@ -109,7 +129,7 @@ struct EventView: View {
                 TableColumn("Source", value: \.source, comparator: OptionalLastComparator<String>()) { Text($0.source ?? Labels.noPosition($0.match.timing)).foregroundStyle($0.source == nil ? .secondary : .primary) }.width(min: 110, ideal: 160).customizationID("source").defaultVisibility(.hidden)
                 TableColumn("Download", value: \.status, comparator: OptionalLastComparator<String>()) { StatusDot(status: $0.download?.status) }.width(min: 64, ideal: 84, max: 130).customizationID("download")
             }
-            .overlay { if rows.isEmpty { ContentUnavailableView("No Matching Matches", systemImage: "magnifyingglass", description: Text("Try another search, division, round or day.")).allowsHitTesting(false) } }
+            .overlay { if rows.isEmpty && rowsBuilt != nil { ContentUnavailableView("No Matching Matches", systemImage: "magnifyingglass", description: Text("Try another search, division, round or day.")).allowsHitTesting(false) } }
             .tableStyle(.inset(alternatesRowBackgrounds: true))
             .scrollContentBackground(.hidden)
             .mutedSelection()

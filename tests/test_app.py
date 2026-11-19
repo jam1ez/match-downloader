@@ -158,6 +158,21 @@ class Tests(unittest.TestCase):
         self.assertEqual(app.job_progress(row)['fraction'],0.865)
         add('frame=4 time=00:00:05.00 speed=9x\r')                           # a glitch must not move the bar back
         self.assertEqual(app.job_progress(row)['fraction'],0.865)
+    def test_job_progress_reads_only_new_log_output(self):
+        folder=app.DATA/'prog5';folder.mkdir(exist_ok=True);log=folder/'job.log'
+        log.write_text('');app.LOGPOS['prog5']=0;app.LASTPROG.pop('prog5',None);app.LOGSEEN.pop('prog5',None)
+        row={'id':'prog5','status':'processing','clip_mode':'fixed','start':0,'end':100,'detail':'','detect_settings':'','source_start':0}
+        def add(text):
+            with open(log,'a') as f:f.write(text)
+        add('frame=1 time=00:00:20.00 speed=2x\rframe=2 time=00:00:4')    # the second line is still being written
+        self.assertEqual(app.job_progress(row),{'fraction':0.2,'eta':40})
+        self.assertEqual(app.LOGSEEN['prog5']['pos'],log.stat().st_size)  # read up to the end, once
+        add('0.00 speed=4x\r')                                              # its other half arrives
+        self.assertEqual(app.job_progress(row),{'fraction':0.4,'eta':15})
+        self.assertEqual(app.job_progress(row),{'fraction':0.4,'eta':15})  # nothing new: same answer
+        app.LOGPOS['prog5']=log.stat().st_size                             # the next step starts in the same log
+        self.assertEqual(app.job_progress(row),{'fraction':None,'eta':None})  # the new step hasn't reported yet
+        self.assertIsNone(app.LOGSEEN['prog5']['time'])
     def test_queue_runs_two_jobs_at_once_and_no_more(self):
         import time
         from unittest.mock import patch
