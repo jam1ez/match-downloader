@@ -33,8 +33,13 @@ enum CatalogueRefresh {
 }
 
 enum DownloadNotifications {
+    /// The app's own on/off switch (Settings → General), on top of the permission macOS keeps.
+    static let enabledKey = "notifications.enabled"
+    static func enabled(_ defaults: UserDefaults = .standard) -> Bool { defaults.object(forKey: enabledKey) as? Bool ?? true }
+    static func allowed(_ status: UNAuthorizationStatus?) -> Bool { [.authorized, .provisional].contains(status) }
     /// Ask once, the first time something is added to Downloads, rather than making people find the setting.
     static func askIfNeeded() async {
+        guard enabled() else { return }
         let center = UNUserNotificationCenter.current()
         guard await center.notificationSettings().authorizationStatus == .notDetermined else { return }
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
@@ -59,6 +64,7 @@ private struct GeneralSettings: View {
     @Bindable var library: LibraryStore
     @AppStorage(EngineSettings.parallelKey) private var parallel = 2
     @State private var notifications: UNAuthorizationStatus?
+    @AppStorage(DownloadNotifications.enabledKey) private var notificationsEnabled = true
     var body: some View {
         Form {
             Section("Library") {
@@ -73,24 +79,44 @@ private struct GeneralSettings: View {
                      : "Takes effect the next time Match Downloader starts its engine. If downloads were still running when you quit, that happens after they finish.")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            Section("Notifications") {
-                switch notifications {
-                case .authorized, .provisional, .ephemeral:
-                    LabeledContent("Download Notifications", value: "On")
-                case .denied:
-                    LabeledContent("Download Notifications", value: "Off")
-                    Button("Open System Settings…") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { NSWorkspace.shared.open(url) }
-                    }
-                default:
-                    Button("Turn On Download Notifications…") {
-                        Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]); await refreshNotifications() }
-                    }
+            Section {
+                Toggle("Download Notifications", isOn: notificationSwitch).toggleStyle(.switch)
+            } header: {
+                Text("Notifications")
+            } footer: {
+                if notifications == .denied {
+                    HStack(spacing: 4) {
+                        Text("Notifications are turned off for Match Downloader in System Settings.")
+                        Button("Open System Settings…") { openSystemNotifications() }.buttonStyle(.link)
+                    }.font(.callout).foregroundStyle(.secondary)
+                } else {
+                    Text("Tells you when a download finishes, fails or needs review.").font(.callout).foregroundStyle(.secondary)
                 }
             }
         }
         .formStyle(.grouped)
         .task { await refreshNotifications() }
+        // Coming back from System Settings: show what was chosen there.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await refreshNotifications() } }
+    }
+    /// On only when the app's own preference is on and macOS allows it. macOS doesn't let an app revoke
+    /// its permission, so turning the switch off just stops the app from sending them.
+    private var notificationSwitch: Binding<Bool> {
+        Binding(get: { notificationsEnabled && DownloadNotifications.allowed(notifications) }, set: { on in
+            notificationsEnabled = on
+            guard on else { return }
+            Task {
+                switch notifications {
+                case .notDetermined?: _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+                case .denied?: openSystemNotifications()
+                default: break
+                }
+                await refreshNotifications()
+            }
+        })
+    }
+    private func openSystemNotifications() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { NSWorkspace.shared.open(url) }
     }
     private func refreshNotifications() async { notifications = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus }
 }

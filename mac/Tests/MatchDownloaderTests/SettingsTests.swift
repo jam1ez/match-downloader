@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 import Testing
 @testable import MatchDownloader
 
@@ -16,5 +17,20 @@ import Testing
         #expect(CatalogueRefresh.isStale(0, now: now))
         #expect(!CatalogueRefresh.isStale(now.timeIntervalSince1970 - 3600, now: now))
         #expect(CatalogueRefresh.isStale(now.timeIntervalSince1970 - 25 * 3600, now: now))
+    }
+}
+
+@Suite struct NotificationSwitchTests {
+    @Test func onByDefaultAndFollowsTheSwitch() {
+        let defaults = UserDefaults(suiteName: "NotificationSwitchTests.\(UUID().uuidString)")!
+        #expect(DownloadNotifications.enabled(defaults))
+        defaults.set(false, forKey: DownloadNotifications.enabledKey)
+        #expect(!DownloadNotifications.enabled(defaults))
+    }
+    @Test func onlyAllowedStatusesCountAsOn() {
+        #expect(DownloadNotifications.allowed(.authorized))
+        #expect(!DownloadNotifications.allowed(.denied))
+        #expect(!DownloadNotifications.allowed(.notDetermined))
+        #expect(!DownloadNotifications.allowed(nil))
     }
 }
