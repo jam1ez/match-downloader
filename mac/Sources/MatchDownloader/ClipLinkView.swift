@@ -56,7 +56,7 @@ struct ClipLinkView: View {
     private func queueClip() {
         guard let client = library.client else { return }; busy = true; error = nil
         let clip = NewClip(title: title, url: url, start: start, end: end, notes: notes)
-        Task { defer { busy = false }; do { try await client.addClip(clip); title = ""; notes = ""; message = "Added to Downloads"; try await library.refresh() } catch { self.error = error.localizedDescription } }
+        Task { defer { busy = false }; do { try await client.addClip(clip); title = ""; notes = ""; message = "Added to Downloads"; try await library.refresh(); await DownloadNotifications.askIfNeeded() } catch { self.error = error.localizedDescription } }
     }
     private func queueList() {
         guard let client = library.client else { return }; busy = true; error = nil
@@ -66,7 +66,7 @@ struct ClipLinkView: View {
             var added = 0
             do {
                 for index in indices { try await client.addClip(imports[index]); selected.remove(index); added += 1 }
-                message = "\(Format.plural(added, "clip")) added to Downloads"; try await library.refresh()
+                message = "\(Format.plural(added, "clip")) added to Downloads"; try await library.refresh(); await DownloadNotifications.askIfNeeded()
             } catch { self.error = "Stopped after \(added): \(error.localizedDescription)"; try? await library.refresh() }
         }
     }

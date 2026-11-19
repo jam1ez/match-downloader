@@ -12,6 +12,7 @@ struct WorkspaceView: View {
     @AppStorage("sidebar.archivedExpanded.v2") private var archivedExpanded = false
     @AppStorage("sidebar.catalogueExpanded") private var catalogueExpanded = true
     @AppStorage("sidebar.worldsExpanded.v2") private var worldsExpanded = false
+    @AppStorage(CatalogueRefresh.key) private var catalogueUpdated = 0.0
     @State private var visibility = NavigationSplitViewVisibility.automatic
     var body: some View {
         NavigationSplitView(columnVisibility: $visibility) {
@@ -32,7 +33,7 @@ struct WorkspaceView: View {
             .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 360)
             .toolbar {
                 Button("Add Events…", systemImage: "plus") { addEvents = true }
-                Button("Update Catalogue", systemImage: "arrow.clockwise") { Task { await events.catalogue(refresh: true) } }
+                SettingsLink { Label("Settings", systemImage: "gearshape") }.help("Settings")
             }
         } detail: {
             if route == "downloads" { DownloadsView(store: library) }
@@ -57,7 +58,11 @@ struct WorkspaceView: View {
             await Task.yield()
             events.client = library.client
             if route.isEmpty { route = lastRoute }
-            await events.catalogue(); if route != "downloads", route != "clip" { await events.load(route) } }
+            await events.catalogue(); if route != "downloads", route != "clip" { await events.load(route) }
+            // Once a day, refresh the catalogue in the background (Settings → Events can do it now).
+            if CatalogueRefresh.isStale(catalogueUpdated), await events.refreshCatalogueQuietly() { catalogueUpdated = Date().timeIntervalSince1970 }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CatalogueRefresh.updated)) { _ in Task { await events.catalogue() } }
         .onChange(of: route) { _, sku in Task { @MainActor in await Task.yield(); lastRoute = sku }; if sku != "downloads", sku != "clip", sku != events.event?.sku { Task { await events.load(sku) } } }
         .safeAreaInset(edge: .bottom) {
             if let error = events.error { HStack { Text(error).textSelection(.enabled); Spacer(); Button("Dismiss") { events.error = nil } }.padding().background(.bar) }

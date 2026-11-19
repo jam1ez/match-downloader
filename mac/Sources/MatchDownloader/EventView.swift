@@ -65,7 +65,6 @@ struct EventView: View {
             ToolbarItemGroup {
                 Button("Refresh Event", systemImage: "arrow.clockwise") { if let sku = event?.sku { Task { await events.load(sku, refresh: true) } } }.disabled(events.loading)
                 Button("Preview", systemImage: "play") { preview(selection) }.disabled(!selected.contains(where: \.available))
-                Button("Set Video Position…", systemImage: "clock") { position = selected.first }.disabled(selected.count != 1)
             }
             ToolbarSpacer(.fixed)
             ToolbarItem { Button("Download…") { downloadSheet = true }.buttonStyle(.glassProminent).disabled(!selected.contains(where: \.available)) }
@@ -389,12 +388,13 @@ struct ClipRangeSlider: View {
     }
 }
 
+/// The per-download choices: Quick Download on or off, and the clip's start and end. The set-once
+/// values (length, lead-in, search window, global shift) are in Settings → Downloads and Advanced.
 struct DownloadOptions: View {
     @AppStorage("download.mode") private var mode = "fixed"
-    @AppStorage("download.duration") private var duration = 180.0
-    @AppStorage("download.before") private var before = 5.0
-    @AppStorage("download.tail") private var tail = 5.0
-    @AppStorage("download.window") private var window = 480.0
+    @AppStorage("download.duration") private var duration = DownloadDefaults.duration
+    @AppStorage("download.before") private var before = DownloadDefaults.before
+    @AppStorage("download.window") private var window = DownloadDefaults.window
     @AppStorage("download.offset") private var offset = 0.0
     @AppStorage("download.startAdjust") private var startAdjust = 0.0
     @AppStorage("download.endAdjust") private var endAdjust = 0.0
@@ -417,7 +417,6 @@ struct DownloadOptions: View {
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         if mode == "fixed" {
-            TextField("Length (seconds)", value: $duration, format: .number)
             LabeledContent("Clip") {
                 ClipRangeSlider(startAdjust: $startAdjust, endAdjust: $endAdjust, baseStart: offset - before, baseEnd: offset - before + duration)
             }
@@ -426,12 +425,11 @@ struct DownloadOptions: View {
                 Spacer()
                 if startAdjust != 0 || endAdjust != 0 { Button("Reset") { startAdjust = 0; endAdjust = 0 }.buttonStyle(.borderless) }
             }
-        } else {
-            Picker("Search Window", selection: $window) { ForEach([180.0, 300, 480, 600, 1200], id: \.self) { Text("\(Int($0 / 60)) minutes").tag($0) } }
-            TextField("After Match (seconds)", value: $tail, format: .number)
         }
-        TextField("Before Match (seconds)", value: $before, format: .number)
-        TextField("Shift Position (seconds)", value: $offset, format: .number)
+        if offset != 0 {
+            Text("Every download is shifted by \(Int(offset)) seconds (Settings → Advanced).").font(.callout).foregroundStyle(.secondary)
+        }
+        SettingsLink { Text("Change Download Defaults…") }.buttonStyle(.link)
     }
 }
 struct DownloadSheet: View {
@@ -440,10 +438,10 @@ struct DownloadSheet: View {
     @Bindable var library: LibraryStore
     @Environment(\.dismiss) private var dismiss
     @AppStorage("download.mode") private var mode = "fixed"
-    @AppStorage("download.duration") private var duration = 180.0
-    @AppStorage("download.before") private var before = 5.0
-    @AppStorage("download.tail") private var tail = 5.0
-    @AppStorage("download.window") private var window = 480.0
+    @AppStorage("download.duration") private var duration = DownloadDefaults.duration
+    @AppStorage("download.before") private var before = DownloadDefaults.before
+    @AppStorage("download.tail") private var tail = DownloadDefaults.tail
+    @AppStorage("download.window") private var window = DownloadDefaults.window
     @AppStorage("download.offset") private var offset = 0.0
     @AppStorage("download.startAdjust") private var startAdjust = 0.0
     @AppStorage("download.endAdjust") private var endAdjust = 0.0
@@ -469,6 +467,7 @@ struct DownloadSheet: View {
             do {
                 let result = try await client.queue(QueueRequest(sku: event.sku, keys: available.map(\.key), mode: mode, duration: duration, before: before, tail: tail, window: window, offset: offset, startAdjust: startAdjust, endAdjust: endAdjust))
                 try await library.refresh(); library.message = "\(result.added.count) added to Downloads; \(result.skipped.count) already there."; dismiss()
+                await DownloadNotifications.askIfNeeded()
             } catch { self.error = error.localizedDescription }
         }
     }

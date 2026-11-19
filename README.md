@@ -29,7 +29,8 @@ Other things you can do:
 ## Good to know
 
 - Schedules you've opened stay on your Mac and work offline. Loading events, previewing and downloading need internet.
-- Two downloads run at once (`MATCH_DOWNLOADER_PARALLEL` sets 1 to 4). Saved videos are in `library/`. Back up that whole folder. Set `MATCH_DOWNLOADER_DATA` to move it.
+- **Settings** (the gear in the sidebar, or Command-comma) holds the set-once choices: downloads at once (1 to 4; `MATCH_DOWNLOADER_PARALLEL` still overrides it), download defaults such as clip length and lead-in, updating the event catalogue (it also updates itself once a day), and an Advanced tab with a shift for every download, the log and the older web version.
+- Saved videos are in `library/`. Back up that whole folder. Set `MATCH_DOWNLOADER_DATA` to move it.
 - Video positions are estimates. Preview a match before downloading.
 - No logins, DRM or paywalled videos. Only download recordings you're allowed to.
 - The app only listens on your own Mac (127.0.0.1).
@@ -51,7 +52,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer mac/scripts/build-app.s
 python3 -m unittest discover -s tests -v
 ```
 
-The app source is in `mac/` (Xcode 26, Swift 6). Test against a copy of the library on another port with `--data` and `--port`, never two engines on one library. Help → Open in Browser opens the older web version.
+The app source is in `mac/` (Xcode 26, Swift 6). Test against a copy of the library on another port with `--data` and `--port`, never two engines on one library. Settings → Advanced → Open Web Version in Browser opens the older web version.
 
 ## License
 

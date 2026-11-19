@@ -1,6 +1,5 @@
 import SwiftUI
 import MatchCore
-import UserNotifications
 
 struct WorkspaceActions {
     var addEvents: () -> Void
@@ -24,7 +23,6 @@ struct MatchCommands: Commands {
     @FocusedValue(\.matchActions) private var match
     @AppStorage("filters.visible") private var filters = true
     @Environment(\.openWindow) private var openWindow
-    let browser: () -> Void
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Window") { openWindow(id: "workspace") }.keyboardShortcut("n", modifiers: [.command, .shift])
@@ -39,29 +37,5 @@ struct MatchCommands: Commands {
         SidebarCommands()
         InspectorCommands()
         CommandGroup(after: .sidebar) { Toggle("Show Filters", isOn: $filters).keyboardShortcut("f", modifiers: [.command, .shift]) }
-        CommandGroup(after: .help) { Button("Open in Browser", action: browser).keyboardShortcut("b", modifiers: [.command, .shift]) }
-    }
-}
-struct AppSettings: View {
-    @Bindable var library: LibraryStore
-    @State private var notificationMessage = ""
-    var body: some View {
-        Form {
-            Section("Downloads") { DownloadOptions() }
-            Section("Library") {
-                LabeledContent("Location") { Text(library.storage).textSelection(.enabled) }
-                Button("Show in Finder") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: library.storage) }.disabled(library.storage.isEmpty)
-                Button("Open in Browser") { if let url = library.client?.baseURL { NSWorkspace.shared.open(url) } }
-            }
-            Section("Notifications") {
-                Button("Enable Download Notifications…") {
-                    Task {
-                        do { let allowed = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]); notificationMessage = allowed ? "Notifications enabled." : "Allow notifications in System Settings to see download alerts." }
-                        catch { notificationMessage = error.localizedDescription }
-                    }
-                }
-                if !notificationMessage.isEmpty { Text(notificationMessage) }
-            }
-        }.formStyle(.grouped).frame(width: 520, height: 530)
     }
 }

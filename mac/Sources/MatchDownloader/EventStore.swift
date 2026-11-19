@@ -21,6 +21,12 @@ final class EventStore {
         do { let result = try await client.catalogue(refresh: refresh); catalogue = result.events; worlds = result.worlds }
         catch { self.error = error.localizedDescription }
     }
+    /// A background refresh: no error banner if the network is down. Returns true when a fresh list arrived.
+    func refreshCatalogueQuietly() async -> Bool {
+        guard let client, let result = try? await client.catalogue(refresh: true) else { return false }
+        catalogue = result.events; worlds = result.worlds
+        return result.offline != true
+    }
     func archive(_ sku: String, _ archived: Bool) async {
         guard let client else { return }
         do { try await client.archiveEvent(sku: sku, archived: archived); await catalogue() }
