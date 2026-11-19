@@ -51,7 +51,6 @@ struct DownloadsView: View {
             }
             .overlay { if rows.isEmpty { ContentUnavailableView(store.clips.isEmpty ? "No Downloads Yet" : "No Matching Downloads", systemImage: "arrow.down.circle", description: Text(store.clips.isEmpty ? "Select matches in an event and choose Download, or choose Clip from Link." : "Try another search or download scope.")).allowsHitTesting(false) } }
             .tableStyle(.inset(alternatesRowBackgrounds: false))
-            .scrollContentBackground(.hidden)
             .mutedSelection()
             .background(TablePersistence(name: "DownloadsTable"))
             .contextMenu(forSelectionType: String.self) { ids in actions(ids) } primaryAction: { ids in play(ids) }
@@ -60,7 +59,6 @@ struct DownloadsView: View {
             .onDeleteCommand { ask("Delete", selection) }
             .onExitCommand { selection = [] }
         }
-        .background(Theme.canvas)
         .navigationTitle("Downloads")
         .navigationSubtitle(store.message)
         .searchable(text: $search, placement: .toolbar, prompt: "Search Downloads")

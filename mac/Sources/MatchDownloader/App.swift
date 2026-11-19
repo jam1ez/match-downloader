@@ -39,7 +39,7 @@ struct MatchDownloaderApp: App {
                 else { StartupMessage(message: message) }
             }.frame(minWidth: 700, minHeight: 440)
             .task(id: ready && scenePhase == .active) { if ready && scenePhase == .active { await store.poll() } }
-            .safeAreaInset(edge: .bottom) { if let error = store.error { HStack { Text(error).textSelection(.enabled); Spacer(); Button("Dismiss") { store.error = nil } }.padding().background(.bar) } }
+            .safeAreaBar(edge: .bottom) { if let error = store.error { HStack { Text(error).textSelection(.enabled); Spacer(); Button("Dismiss") { store.error = nil } }.padding() } }
             .task {
                 if let flag = CommandLine.arguments.firstIndex(of: "--verify-player"), CommandLine.arguments.indices.contains(flag + 1) {
                     do { try await PlayerVerification.run(url: URL(fileURLWithPath: CommandLine.arguments[flag + 1])); print("VERIFY_PLAYER_PASS") }

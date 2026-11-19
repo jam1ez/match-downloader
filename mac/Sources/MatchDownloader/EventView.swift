@@ -65,7 +65,6 @@ struct EventView: View {
             if filters { filterBar }
             scheduleTable
         }
-        .background(Theme.canvas)
         .overlay(alignment: .bottom) { statusLine.padding(.bottom, 12).allowsHitTesting(false) }
         .focusedSceneValue(\.matchActions, MatchActions(preview: { preview(selection) }, position: { position = selected.first }, download: { downloadSheet = true }, hasVideo: selected.contains(where: \.available), singleMatch: selected.count == 1))
         .navigationTitle(event?.name ?? "Choose an Event")
@@ -131,7 +130,6 @@ struct EventView: View {
             }
             .overlay { if rows.isEmpty && rowsBuilt != nil { ContentUnavailableView("No Matching Matches", systemImage: "magnifyingglass", description: Text("Try another search, division, round or day.")).allowsHitTesting(false) } }
             .tableStyle(.inset(alternatesRowBackgrounds: true))
-            .scrollContentBackground(.hidden)
             .mutedSelection()
             .contentMargins(.bottom, 56, for: .scrollContent)
             .background(TablePersistence(name: "ScheduleTable.v3"))

@@ -141,9 +141,9 @@ struct PreviewWindow: View {
             Image(systemName: "exclamationmark.triangle").font(.title)
             Text(Self.reason(error)).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             Button("Open in Browser at \(Format.clock(item.target))") { openInBrowser() }
-                .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.large)
+                .buttonStyle(.glassProminent).controlSize(.large)
             Text("It opens on the recording’s own site, at the match.").font(.callout).foregroundStyle(.secondary)
-        }.padding(24).frame(maxWidth: 420).background(.regularMaterial, in: .rect(cornerRadius: 18))
+        }.padding(24).frame(maxWidth: 420).glassEffect(.regular, in: .rect(cornerRadius: 24))
     }
     /// The player's message points at a web-page link that doesn't exist here; keep only the reason.
     private static func reason(_ error: String) -> String {
