@@ -11,7 +11,7 @@ const resolveSource=async(url,signal)=>{
 };
 try {
  const player=createPreview(document.getElementById('player'),{url,target,resolveSource,onState:emit});
- window.matchPreview={jump:()=>player.jump(),currentTime:()=>player.getCurrentTime(),seek:time=>player.seekTo(time),link:()=>recordingLink(url,target),destroy:()=>player.destroy()};
+ window.matchPreview={jump:()=>player.jump(),control:(command,value)=>player.control(command,value),currentTime:()=>player.getCurrentTime(),seek:time=>player.seekTo(time),link:()=>recordingLink(url,target),destroy:()=>player.destroy()};
  window.addEventListener('pagehide',()=>player.destroy(),{once:true});
  emit({initialized:true,url,target});
 }catch(error){emit({error:error.message});}

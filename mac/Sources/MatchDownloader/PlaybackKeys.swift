@@ -1,4 +1,5 @@
 import AVKit
+import WebKit
 import MatchCore
 
 /// Keyboard control for the playback window. Space, the arrow keys and a few letters, like a video player
@@ -84,36 +85,60 @@ enum PlayerController {
     }
 }
 
-/// The system player, with the keys above handled when it is the one being used.
-/// AVPlayerView hands keyboard focus to an inner view that steps a single frame on the arrow keys, so a keyDown
-/// override never sees them. A key monitor for this window answers first instead.
-final class KeyPlayerView: AVPlayerView {
+/// Answers the player keys for one window, ahead of whatever view has keyboard focus. AVPlayerView and web
+/// pages both hand focus to inner views that treat the arrow keys their own way, so a keyDown override never
+/// sees them; a key monitor scoped to the window does.
+@MainActor
+final class KeyRouter {
     var handle: ((PlayerCommand, NSWindow?) -> Void)?
+    private weak var view: NSView?
     private var monitor: Any?
     private var becameKey: NSObjectProtocol?
-    override var acceptsFirstResponder: Bool { true }
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
-        if let becameKey { NotificationCenter.default.removeObserver(becameKey); self.becameKey = nil }
-        guard handle != nil, let window else { return }
+    func install(on view: NSView) {
+        remove()
+        self.view = view
+        guard handle != nil, let window = view.window else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             // Monitors run on the main thread; the event is only read here.
             nonisolated(unsafe) let key = event
             let handled = MainActor.assumeIsolated { () -> Bool in
-                guard let self, key.window === self.window else { return false }
+                guard let self, let view = self.view, key.window === view.window else { return false }
                 return self.route(key)
             }
             return handled ? nil : event
         }
         becameKey = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { if let self { self.window?.makeFirstResponder(self) } }
+            MainActor.assumeIsolated { if let view = self?.view { view.window?.makeFirstResponder(view) } }
         }
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.window?.makeFirstResponder(self)
+        DispatchQueue.main.async { [weak view] in
+            guard let view else { return }
+            view.window?.makeFirstResponder(view)
         }
+    }
+    func remove() {
+        if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+        if let becameKey { NotificationCenter.default.removeObserver(becameKey); self.becameKey = nil }
+    }
+    /// True when the key is one of ours (acted on, or ignored because it is a repeat of a key that fires once).
+    func route(_ event: NSEvent) -> Bool {
+        guard let handle, let command = PlayerCommand.from(event) else { return false }
+        if !(event.isARepeat && !command.repeats) { handle(command, view?.window) }
+        return true
+    }
+}
+
+/// The system player, with the keys above handled when it is the one being used.
+final class KeyPlayerView: AVPlayerView {
+    let keys = KeyRouter()
+    var handle: ((PlayerCommand, NSWindow?) -> Void)? {
+        get { keys.handle }
+        set { keys.handle = newValue }
+    }
+    override var acceptsFirstResponder: Bool { true }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        keys.install(on: self)
     }
     override func mouseDown(with event: NSEvent) {
         if handle != nil { window?.makeFirstResponder(self) }
@@ -121,17 +146,47 @@ final class KeyPlayerView: AVPlayerView {
     }
     /// Also answer when the key reaches the view normally.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if event.type == .keyDown, route(event) { return true }
+        if event.type == .keyDown, keys.route(event) { return true }
         return super.performKeyEquivalent(with: event)
     }
     override func keyDown(with event: NSEvent) {
-        if !route(event) { super.keyDown(with: event) }
+        if !keys.route(event) { super.keyDown(with: event) }
     }
-    /// True when the key is one of ours (acted on, or ignored because it is a repeat of a key that fires once).
-    private func route(_ event: NSEvent) -> Bool {
-        guard let handle, let command = PlayerCommand.from(event) else { return false }
-        if !(event.isARepeat && !command.repeats) { handle(command, window) }
-        return true
+}
+
+/// The recording preview is a web page (YouTube, Vimeo or a plain video), so the same keys go to the page's
+/// player through `window.matchPreview.control`, however the page's own player handles focus.
+final class KeyWebView: WKWebView {
+    let keys = KeyRouter()
+    /// The script that carries a command out in the preview page; nil for commands a web player can't do.
+    static func script(for command: PlayerCommand) -> String? {
+        func call(_ name: String, _ value: Double? = nil) -> String {
+            "window.matchPreview?.control('\(name)'" + (value.map { ",\($0)" } ?? "") + ")"
+        }
+        switch command {
+        case .togglePlay: return call("toggle")
+        case .seek(let seconds): return call("skip", seconds)
+        case .volume(let step): return call("volume", (Double(step) * 100).rounded() / 100)
+        case .toggleMute: return call("mute")
+        case .faster: return call("rate", 1)
+        case .slower: return call("rate", -1)
+        case .restart: return call("restart")
+        case .step, .finish, .fullScreen, .close: return nil
+        }
+    }
+    override var acceptsFirstResponder: Bool { true }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        keys.handle = { [weak self] command, window in
+            switch command {
+            case .fullScreen: window?.toggleFullScreen(nil)
+            case .close:
+                if let window, window.styleMask.contains(.fullScreen) { window.toggleFullScreen(nil) } else { window?.performClose(nil) }
+            default:
+                if let script = Self.script(for: command) { self?.evaluateJavaScript(script, completionHandler: nil) }
+            }
+        }
+        keys.install(on: self)
     }
 }
 
@@ -217,6 +272,26 @@ enum PlayerVerification {
         try expect(player.rate == 0, "space through the window pauses")
         window.orderOut(nil)
 
+        // The web preview: the same key presses reach the page's player, wherever focus is inside the web view.
+        let web = KeyWebView(frame: NSRect(x: 0, y: 0, width: 480, height: 270), configuration: WKWebViewConfiguration())
+        let webWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 270), styleMask: [.titled], backing: .buffered, defer: false)
+        webWindow.contentView = web
+        webWindow.makeKeyAndOrderFront(nil)
+        web.loadHTMLString("<html><body style='margin:0'><script>window.log=[];window.matchPreview={control:(c,v)=>window.log.push(c+':'+(v??''))}</script></body></html>", baseURL: nil)
+        for _ in 0..<100 where web.isLoading { try await Task.sleep(for: .milliseconds(50)) }
+        webWindow.makeFirstResponder(web)
+        func webPress(_ code: UInt16, _ chars: String, flags: NSEvent.ModifierFlags = []) {
+            let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime,
+                                         windowNumber: webWindow.windowNumber, context: nil, characters: chars, charactersIgnoringModifiers: chars,
+                                         isARepeat: false, keyCode: code)!
+            NSApp.sendEvent(event)
+        }
+        webPress(49, " "); webPress(124, "\u{F703}", flags: [.numericPad, .function]); webPress(123, "\u{F702}", flags: [.numericPad, .function, .shift]); webPress(126, "\u{F700}", flags: [.numericPad, .function])
+        try await Task.sleep(for: .milliseconds(300))
+        let logged = try await web.evaluateJavaScript("window.log.join(' ')") as? String
+        try expect(logged == "toggle: skip:5 skip:-10 volume:0.1", "web preview keys reach the page's player, got \(logged ?? "nil")")
+        webWindow.orderOut(nil)
+
         // Real key events map to the right commands.
         func key(_ code: UInt16, _ chars: String = "", shift: Bool = false, command: Bool = false) -> PlayerCommand? {
             var flags: NSEvent.ModifierFlags = []
@@ -234,5 +309,9 @@ enum PlayerVerification {
         try expect(key(46, "m") == .toggleMute && key(3, "f") == .fullScreen && key(53) == .close, "M, F, Escape")
         try expect(key(49, " ", command: true) == nil && key(123, command: true) == nil, "command combinations are left to the menu bar")
         try expect(key(0, "a") == nil, "other keys are ignored")
+        try expect(KeyWebView.script(for: .togglePlay) == "window.matchPreview?.control('toggle')", "web space script")
+        try expect(KeyWebView.script(for: .seek(-5)) == "window.matchPreview?.control('skip',-5.0)", "web left arrow script")
+        try expect(KeyWebView.script(for: .volume(0.1)).map { $0.contains("'volume',0.1") } == true, "web volume script")
+        try expect(KeyWebView.script(for: .step(1)) == nil, "frame stepping is not a web command")
     }
 }

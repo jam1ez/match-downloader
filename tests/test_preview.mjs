@@ -48,3 +48,35 @@ test('first playback explicitly seeks even if pre-play cue and seek were ignored
   assert.match(states.at(-1).error,/Open recording at match time/);
   session.destroy();assert.equal(instance.destroyed,true);
 });
+const {nextRate}=await import(moduleUrl);
+test('keyboard commands play, skip, change volume and speed in a YouTube player',async()=>{
+  let yt;const states=[];
+  globalThis.location={origin:'http://127.0.0.1:8766'};
+  globalThis.document={createElement:()=>({})};
+  globalThis.window={YT:{Player:class{
+    constructor(el,options){yt=this;this.position=100;this.state=2;this.volume=50;this.muted=false;this.rate=1;queueMicrotask(()=>options.events.onReady({target:this}));}
+    cueVideoById(){} seekTo(t){this.position=t;} getCurrentTime(){return this.position;} getDuration(){return 1000;}
+    getPlayerState(){return this.state;} playVideo(){this.state=1;} pauseVideo(){this.state=2;}
+    getVolume(){return this.volume;} setVolume(v){this.volume=v;} unMute(){this.muted=false;} mute(){this.muted=true;} isMuted(){return this.muted;}
+    getPlaybackRate(){return this.rate;} setPlaybackRate(r){this.rate=r;} destroy(){}
+  }}};
+  const session=createPreview({replaceChildren(){},append(){}},{url:'https://youtube.com/watch?v=T3iBuIt4M-0',target:100,onState:s=>states.push(s)});
+  await new Promise(setImmediate);
+  await session.control('toggle');assert.equal(yt.state,1);
+  await session.control('toggle');assert.equal(yt.state,2);
+  await session.control('skip',5);assert.equal(yt.position,105);
+  await session.control('skip',-10);assert.equal(yt.position,95);
+  await session.control('skip',-500);assert.equal(yt.position,0);
+  await session.control('skip',5000);assert.equal(yt.position,1000);
+  await session.control('volume',0.1);assert.equal(yt.volume,60);
+  await session.control('volume',-1);assert.equal(yt.volume,0);
+  await session.control('mute');assert.equal(yt.muted,true);
+  await session.control('rate',1);assert.equal(yt.rate,1.25);
+  await session.control('rate',-1);await session.control('rate',-1);assert.equal(yt.rate,0.75);
+  await session.control('restart');assert.equal(yt.position,0);
+  assert.equal(states.at(-1).error,undefined,'keys never report a playback error');
+  session.destroy();
+});
+test('speed steps stay within the available speeds',()=>{
+  assert.equal(nextRate(1,1),1.25);assert.equal(nextRate(2,1),2);assert.equal(nextRate(0.5,-1),0.5);assert.equal(nextRate(1,-1),0.75);
+});

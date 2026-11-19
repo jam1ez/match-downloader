@@ -55,7 +55,7 @@ struct EmbeddedPreview: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "preview")
-        let view = WKWebView(frame: .zero, configuration: configuration)
+        let view = KeyWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
         view.uiDelegate = context.coordinator
         bridge.webView = view
@@ -117,7 +117,6 @@ final class PreviewWindows {
 struct PreviewWindow: View {
     let item: PreviewItem
     @State private var bridge = PreviewBridge()
-    @Environment(\.dismissWindow) private var dismissWindow
     var body: some View {
         // The player fills the whole window (16:9, no bar underneath); controls live in the toolbar.
         EmbeddedPreview(item: item, bridge: bridge)
@@ -135,7 +134,6 @@ struct PreviewWindow: View {
             }
             .onAppear { PreviewWindows.shared.open.insert(item.id) }
             .onDisappear { PreviewWindows.shared.open.remove(item.id) }
-            .onKeyPress(.space) { dismissWindow(value: item); return .handled }
     }
     /// Shown when the recording can't play inside the app: say why and offer the way out.
     private func unavailable(_ error: String) -> some View {
