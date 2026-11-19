@@ -80,7 +80,26 @@ def normalize_stream(event,body):
     url=video_url(body.get('url',''));parsed=urlparse(url);host=(parsed.hostname or '').replace('www.','')
     if host in ('youtube.com','m.youtube.com') and not (parse_qs(parsed.query).get('v') or re.search(r'/(?:live|embed|shorts)/[A-Za-z0-9_-]{11}',parsed.path)):
         raise ValueError('Choose a specific YouTube recording. Use Read recording info to select a video from a channel or playlist.')
-    stream={'id':body.get('id') or uuid.uuid4().hex,'label':str(body.get('label') or 'Recording')[:150],'url':url,'divisionId':division,'date':date,'field':str(body.get('field') or '')[:100],'syncMode':mode,'basis':basis,'offset':number(body.get('offset'),minimum=-3600,maximum=3600),'duration':number(body.get('duration'),default=None),'enabled':body.get('enabled',True) is not False,'firstMatch':str(body.get('firstMatch') or ''),'lastMatch':str(body.get('lastMatch') or ''),'anchorKey':str(body.get('anchorKey') or ''),'anchorPosition':number(body.get('anchorPosition')),'wallStart':str(body.get('wallStart') or ''),'metadata':body.get('metadata') if isinstance(body.get('metadata'),dict) else {},'fillOnly':body.get('fillOnly') is True}
+    stream={
+        'id':body.get('id') or uuid.uuid4().hex,
+        'label':str(body.get('label') or 'Recording')[:150],
+        'url':url,
+        'divisionId':division,
+        'date':date,
+        'field':str(body.get('field') or '')[:100],
+        'syncMode':mode,
+        'basis':basis,
+        'offset':number(body.get('offset'),minimum=-3600,maximum=3600),
+        'duration':number(body.get('duration'),default=None),
+        'enabled':body.get('enabled',True) is not False,
+        'firstMatch':str(body.get('firstMatch') or ''),
+        'lastMatch':str(body.get('lastMatch') or ''),
+        'anchorKey':str(body.get('anchorKey') or ''),
+        'anchorPosition':number(body.get('anchorPosition')),
+        'wallStart':str(body.get('wallStart') or ''),
+        'metadata':body.get('metadata') if isinstance(body.get('metadata'),dict) else {},
+        'fillOnly':body.get('fillOnly') is True,
+    }
     if stream['duration']==0:stream['duration']=None
     scoped=scope_matches(event,stream)
     if (stream['firstMatch'] or stream['lastMatch']) and not scoped:raise ValueError('The first/last match range does not match this division, day and field')

@@ -1,5 +1,7 @@
 # Progress log: native SwiftUI Match Downloader
 
+> Historical record of the SwiftUI rewrite. Files it mentions that no longer exist (`PROMPT.md`, `REVIEW.md`, `redesign/mac/`, the screenshots, `tools/Desktop.swift`, and the `/next` and `/classic` web pages) were removed in a later cleanup and remain in git history.
+
 Last updated: 2026-11-18, after native Phases 0–4 implementation and nonvisual verification. **Nothing has been committed.** Read the continuation and final checkpoint below for current state. The initial handoff below is retained as history.
 
 Current status: native root bundle built; Swift/Python/Node/iOS and native workflow integration checks pass. REVIEW.md records the remaining Medium startup warning and unverified interactive/accessibility acceptance checks. Computer use remains disabled.

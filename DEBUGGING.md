@@ -27,7 +27,7 @@ A fix is only trusted if the failure was reproduced first and the same check pas
 
 | Change | Run |
 |---|---|
-| Python engine (`app.py`, `events.py`, `event_streams.py`, `worlds.py`, `boundaries.py`, `webcast.py`, `auto_timing.py`) | `python3 -m unittest discover -s tests` |
+| Python engine (`app.py` starts it; `jobs.py` downloads and encodes, `server.py` is the HTTP API; `events.py`, `event_streams.py`, `worlds.py`, `boundaries.py`, `webcast.py`, `auto_timing.py`) | `python3 -m unittest discover -s tests` |
 | Preview page (`web/preview.js`, `web/embed/preview.html`) | `node --test tests/test_preview.mjs` |
 | Swift model / client / math (`mac/Sources/MatchCore`) | `cd mac && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --disable-sandbox` |
 | Swift app target | `swift build --disable-sandbox` — the build must have **no warnings** (Swift 6 strict concurrency) |
@@ -87,7 +87,7 @@ and port 8766 were not used. These are focused findings, not an exhaustive audit
 ### DBG-001 - Cancelling a queued adjustment leaves the saved clip in an inconsistent state
 
 - Priority: P2. Status: reproduced through the Python request handler.
-- Location: `app.py`, `/api/clips/<id>/adjust`, `/cancel`, and `process_adjust`.
+- Location: `server.py` (`/api/clips/<id>/adjust`, `/cancel`) and `process_adjust` in `jobs.py`.
 - Trigger: a ready clip has bounds 100-200. Submit an adjustment to 110-190, then cancel while it is
   still queued (before a worker claims it).
 - Observed: both operations return 200. The database retains `start=110`, `end=190`,
@@ -129,7 +129,7 @@ and port 8766 were not used. These are focused findings, not an exhaustive audit
 ### DBG-004 - Manual clip creation accepts less than the documented minimum duration
 
 - Priority: P3. Status: reproduced through the Python request handler.
-- Location: `app.py`, POST `/api/clips`.
+- Location: `server.py`, POST `/api/clips`.
 - Trigger: submit `title="tiny"`, `url="https://example.com/video"`, `start=0`, `end=0.1`.
 - Observed: HTTP response status 201 and a queued clip, despite validation text saying to choose a
   clip between 1 second and 1 hour.

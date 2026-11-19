@@ -11,13 +11,12 @@ let package = Package(
         .executable(name: "MatchDownloader", targets: ["MatchDownloader"]),
     ],
     targets: [
-        .target(name: "MatchCore", exclude: ["Watermarks Cleaned"]),
-        .executableTarget(name: "MatchDownloader", dependencies: ["MatchCore"], exclude: ["Watermarks Cleaned"]),
+        .target(name: "MatchCore"),
+        .executableTarget(name: "MatchDownloader", dependencies: ["MatchCore"]),
         .testTarget(name: "MatchDownloaderTests", dependencies: ["MatchDownloader", "MatchCore"]),
         .testTarget(
             name: "MatchCoreTests",
             dependencies: ["MatchCore"],
-            exclude: ["Watermarks Cleaned"],
             resources: [.copy("Fixtures")]
         ),
     ],

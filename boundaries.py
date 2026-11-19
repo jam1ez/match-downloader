@@ -92,7 +92,20 @@ def detect(frames,anchor,match_label='',format='two-phase',lead=5,tail=5,duratio
                     last_zero=max(zeros);start_uncertainty=start-last_zero
                     start=(last_zero+start)/2;phases[0]['start']=start;start_visible=True
             confidence='high' if matching>=2 and conflicts==0 and start_visible and all(p['samples']>=4 for p in phases) else 'review'
-            candidates.append({'start':max(0,start-lead),'end':min(end+tail,duration) if duration else end+tail,'match_start':start,'match_end':end,'pause':max(0,phases[1]['start']-phases[0]['end']) if len(phases)>1 else 0,'phases':phases,'start_uncertainty':start_uncertainty,'start_visible':start_visible,'identity_frames':matching,'conflicting_frames':conflicts,'confidence':confidence,'clock_position':{'x':group['x'],'y':group['y']}})
+            candidates.append({
+                'start':max(0,start-lead),
+                'end':min(end+tail,duration) if duration else end+tail,
+                'match_start':start,
+                'match_end':end,
+                'pause':max(0,phases[1]['start']-phases[0]['end']) if len(phases)>1 else 0,
+                'phases':phases,
+                'start_uncertainty':start_uncertainty,
+                'start_visible':start_visible,
+                'identity_frames':matching,
+                'conflicting_frames':conflicts,
+                'confidence':confidence,
+                'clock_position':{'x':group['x'],'y':group['y']},
+            })
     if not candidates:return {'confidence':'review','reason':'Could not verify the full match countdown'+('s (autonomous and driver).' if format=='two-phase' else '.'),'runs':all_runs}
     candidates.sort(key=lambda c:(c['confidence']!='high',-c['identity_frames'],abs(c['match_start']-anchor)))
     best=candidates[0]

@@ -1,5 +1,7 @@
 # Plan: a native SwiftUI Match Downloader
 
+> Historical record of the SwiftUI rewrite. Files it mentions that no longer exist (`PROMPT.md`, `REVIEW.md`, `redesign/mac/`, the screenshots, `tools/Desktop.swift`, and the `/next` and `/classic` web pages) were removed in a later cleanup and remain in git history.
+
 Status: plan only, nothing built. Written 2026-11-18. Decisions settled the same day (see Decisions); to be built in one session with `PROMPT.md`.
 
 ## Goal
