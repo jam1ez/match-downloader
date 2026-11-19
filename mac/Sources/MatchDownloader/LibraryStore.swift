@@ -9,7 +9,16 @@ final class LibraryStore {
     var storage = ""
     var free: Int64 = 0
     var message = "Connecting to your library…"
-    var error: String?
+    private var connectionError: String?
+    private var operationError: String?
+    private var capabilityError: String?
+    var error: String? {
+        get { operationError ?? connectionError ?? capabilityError }
+        set {
+            operationError = newValue
+            if newValue == nil { connectionError = nil; capabilityError = nil }
+        }
+    }
     var ready = false
     var busy = false
     private var pollingTask: Task<Void, Never>?
@@ -18,7 +27,12 @@ final class LibraryStore {
 
     func refresh() async throws {
         guard let client else { return }
-        let library = try await client.library()
+        let library: LibraryState
+        do { library = try await client.library() }
+        catch is CancellationError { throw CancellationError() }
+        catch { connectionError = error.localizedDescription; throw error }
+        connectionError = nil
+        capabilityError = library.ffmpeg ? nil : "FFmpeg isn’t installed. Install FFmpeg, then reopen the app to download matches."
         let old = Dictionary(uniqueKeysWithValues: clips.map { ($0.id, $0.status) })
         // Stable IDs preserve table selection and row identity while values update in place.
         if clips != library.clips { clips = library.clips }; storage = library.storage; free = library.free
@@ -29,7 +43,6 @@ final class LibraryStore {
             }
         }
         ready = true
-        if !library.ffmpeg { error = "FFmpeg isn’t installed. Install FFmpeg, then reopen the app to download matches." }
         message = "\(Format.plural(clips.filter { $0.status == "ready" }.count, "saved match", "saved matches")), \(Format.size(free)) free"
     }
     func poll() async {
@@ -40,7 +53,7 @@ final class LibraryStore {
                     guard let self else { return }
                     do { try await self.refresh() }
                     catch is CancellationError { return }
-                    catch { self.error = error.localizedDescription }
+                    catch { /* refresh records connection failures separately from operation errors. */ }
                     do { try await Task.sleep(for: .milliseconds(2500)) } catch { return }
                 }
             }
@@ -51,11 +64,13 @@ final class LibraryStore {
     }
     func perform(_ operation: @escaping @MainActor (APIClient) async throws -> Void) {
         guard let client, !busy else { return }
-        busy = true; error = nil
+        busy = true; operationError = nil
         Task {
             defer { busy = false }
-            do { try await operation(client); try await refresh() }
-            catch { self.error = error.localizedDescription }
+            do { try await operation(client) }
+            catch { operationError = error.localizedDescription; return }
+            do { try await refresh() }
+            catch { /* refresh records the connection error. */ }
         }
     }
     private func notify(_ clip: Clip) async {

@@ -231,6 +231,33 @@ class Tests(unittest.TestCase):
         return id,folder
     def _duration(self,path):
         return float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',str(path)],text=True))
+    def test_cancel_queued_adjustment_restores_saved_clip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            id,folder=self._ready_clip(tmp)
+            before=(folder/'clip.mp4').read_bytes()
+            self.post(f'/api/clips/{id}/adjust',{'start':14,'end':26})
+            # A queue-loop claim can already be waiting when cancellation arrives.
+            with app.LOCK:app.BUSY.add(id)
+            self.post(f'/api/clips/{id}/cancel',{})
+            app.worker(id)
+            self.assertNotIn(id,app.BUSY)
+            with app.db() as c:row=dict(c.execute('SELECT * FROM clips WHERE id=?',(id,)).fetchone())
+            self.assertEqual((row['status'],row['start'],row['end'],row['clip_mode']),('ready',10,30,'fixed'))
+            self.assertIsNone(row['detect_settings'])
+            self.assertIn('unchanged',row['detail'])
+            self.assertEqual((folder/'clip.mp4').read_bytes(),before)
+
+    def test_manual_clip_duration_limits(self):
+        for duration in (0,0.1,0.999,3600.001):
+            with self.subTest(duration=duration):
+                with self.assertRaises(HTTPError) as e:
+                    self.post('/api/clips',{'title':'duration','url':'https://example.com/a','start':0,'end':duration})
+                self.assertEqual(e.exception.code,400)
+        for duration in (1,3600):
+            with self.subTest(duration=duration):
+                result=self.post('/api/clips',{'title':'duration','url':'https://example.com/a','start':0,'end':duration})
+                self.assertIn('id',result)
+
     def test_adjust_trims_a_saved_clip_without_downloading(self):
         with tempfile.TemporaryDirectory() as tmp:
             id,folder=self._ready_clip(tmp)

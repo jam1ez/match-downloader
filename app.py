@@ -225,13 +225,16 @@ def process_adjust(id,row):
         if not saved.exists():raise RuntimeError('The saved video is missing, so it cannot be adjusted.')
         out=folder/'clip.tmp.mp4'
         if new_start>=old['start'] and new_end<=old['end']:
-            update(id,status='processing',detail='Trimming the saved video…')
+            with LOCK:
+                check();update(id,status='processing',detail='Trimming the saved video…')
             encode_mp4(id,saved,out,new_start-old['start'],new_end-new_start)
         else:
-            update(id,status='downloading',detail='Downloading the longer clip…')
+            with LOCK:
+                check();update(id,status='downloading',detail='Downloading the longer clip…')
             download_with_retries(id,folder,section_args(folder,row['url'],new_start,new_end),check)
             source=downloaded_source(folder);check()
-            update(id,status='processing',detail='Preparing a laptop-compatible MP4…')
+            with LOCK:
+                check();update(id,status='processing',detail='Preparing a laptop-compatible MP4…')
             encode_mp4(id,source,out,None,new_end-new_start)
         with LOCK:
             check();out.replace(saved)
@@ -246,14 +249,15 @@ def process_adjust(id,row):
 def process_clip(id):
     folder=DATA/id; folder.mkdir(exist_ok=True)
     try:
-        with db() as c: row=dict(c.execute('SELECT * FROM clips WHERE id=?',(id,)).fetchone())
         if not shutil.which('ffmpeg'): raise RuntimeError('FFmpeg is missing. See README for installation.')
         def check():
             with LOCK,db() as c: current=c.execute('SELECT status FROM clips WHERE id=?',(id,)).fetchone()
             if not current or current['status']=='cancelled':raise RuntimeError('Cancelled')
         with LOCK:
+            with db() as c: row=dict(c.execute('SELECT * FROM clips WHERE id=?',(id,)).fetchone())
             if row['status']!='queued':return
-            if row.get('clip_mode')!='adjust':update(id,status='downloading',detail='Preparing the recording…')
+            if row.get('clip_mode')=='adjust':update(id,status='processing',detail='Preparing the adjustment…')
+            else:update(id,status='downloading',detail='Preparing the recording…')
         mode=row.get('clip_mode') or 'fixed'
         if mode=='adjust':return process_adjust(id,row)
         source_start=row.get('source_start') or 0
@@ -508,7 +512,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json({'added':added,'skipped':skipped},201)
             if path=='/api/clips':
                 url=source_url(body.get('url','')); start=seconds(body.get('start')); end=seconds(body.get('end'))
-                if end<=start or end-start>3600: raise ValueError('Choose a clip between 1 second and 1 hour')
+                if not 1<=end-start<=3600: raise ValueError('Choose a clip between 1 second and 1 hour')
                 title=str(body.get('title','')).strip()[:200]
                 if not title: raise ValueError('Enter a match name')
                 id=uuid.uuid4().hex
@@ -545,7 +549,10 @@ class Handler(BaseHTTPRequestHandler):
                     if action=='delete' and (id in BUSY or row['status'] in ('queued','downloading','analyzing','processing')): raise ValueError('Cancel first; wait for the worker to stop before deleting')
                     if id in PROCESSES:
                         terminate(PROCESSES[id])
-                    update(id,status='cancelled',detail='Cancelled')
+                    if action=='cancel' and row['clip_mode']=='adjust' and row['status']=='queued':
+                        old=json.loads(row['detect_settings'] or '{}').get('adjust') or {}
+                        update(id,start=old.get('start',row['start']),end=old.get('end',row['end']),clip_mode=old.get('mode'),detect_settings=old.get('detect'),status='ready',detail='Adjustment cancelled. The saved video is unchanged.')
+                    else:update(id,status='cancelled',detail='Cancelled')
                     if action=='delete':
                         shutil.rmtree(DATA/id,ignore_errors=True)
                         with db() as c: c.execute('DELETE FROM clips WHERE id=?',(id,))

@@ -8,7 +8,8 @@ final class EventStore {
     var catalogue: [CatalogueEvent] = []
     var worlds: WorldsSeason?
     var loading = false
-    var working = false
+    private var workingID: UUID?
+    var working: Bool { workingID != nil }
     var error: String?
     var message = ""
     private var loadID = UUID()
@@ -37,7 +38,7 @@ final class EventStore {
     }
     func load(_ sku: String, refresh: Bool = false) async {
         guard let client else { return }
-        let id = UUID(); loadID = id; loading = true; error = nil
+        let id = UUID(); loadID = id; workingID = nil; loading = true; error = nil
         defer { if id == loadID { loading = false } }
         do {
             let result = try await client.loadEvent(sku: sku, refresh: refresh)
@@ -54,22 +55,22 @@ final class EventStore {
             guard loadID == id, let current = event else { return }
             if current.matches.contains(where: { !$0.available }), current.autoTiming == nil || (current.cached != true && (current.autoTiming?.checked ?? 0) < (current.fetched ?? 0)) {
                 let rev = revision
-                working = true
-                defer { if loadID == id { working = false } }
+                workingID = id
+                defer { if workingID == id { workingID = nil } }
                 if let timed = try? await client.autoTime(sku: result.sku), loadID == id, revision == rev { apply(timed) }
             }
         } catch { if loadID == id { event = nil; self.error = error.localizedDescription } }
     }
     func update(_ operation: @escaping @MainActor (APIClient, String) async throws -> EventDetail) {
         guard let client, let sku = event?.sku, !working else { return }
-        working = true; error = nil; revision += 1
+        let id = UUID(); workingID = id; error = nil; revision += 1
         let rev = revision
         Task {
-            defer { working = false }
+            defer { if workingID == id { workingID = nil } }
             do {
                 let result = try await operation(client, sku)
                 if event?.sku == sku && revision == rev { apply(result) }
-            } catch { self.error = error.localizedDescription }
+            } catch { if workingID == id { self.error = error.localizedDescription } }
         }
     }
 }
