@@ -4,7 +4,9 @@ import MatchCore
 @MainActor @Observable
 final class EventStore {
     var client: APIClient?
-    var event: EventDetail?
+    var event: EventDetail? { didSet { eventVersion &+= 1 } }
+    /// Bumped on every change to `event`, so views can rebuild derived rows without comparing whole events.
+    private(set) var eventVersion = 0
     var catalogue: [CatalogueEvent] = []
     var worlds: WorldsSeason?
     var loading = false

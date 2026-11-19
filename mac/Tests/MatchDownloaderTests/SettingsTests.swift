@@ -34,3 +34,11 @@ import Testing
         #expect(!DownloadNotifications.allowed(nil))
     }
 }
+
+@Suite struct PollingTests {
+    @Test func pollsQuicklyOnlyWhileDownloadingOrFailing() {
+        #expect(LibraryStore.pollInterval(active: true, failing: false) == 2)
+        #expect(LibraryStore.pollInterval(active: false, failing: true) == 2.5)
+        #expect(LibraryStore.pollInterval(active: false, failing: false) == 15)
+    }
+}

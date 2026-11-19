@@ -103,6 +103,36 @@ def terminate(proc):
 FFMPEG_TIME=re.compile(r'time=(\d+):(\d\d):(\d\d(?:\.\d+)?)')
 FFMPEG_SPEED=re.compile(r'speed=\s*([\d.]+)x')
 FORMAT_COUNT=re.compile(r'Downloading (\d+) format\(s\)')
+LOGSEEN={}  # job id -> what has been read of the running step's log so far (see log_progress)
+PROGLOCK=threading.Lock()
+def log_progress(id):
+    """ffmpeg's latest progress for the running step, reading only what was added to job.log since the last call
+    (the library is polled every few seconds, and a long download's log grows to megabytes).
+    {'time': seconds or None, 'passes': times the clock restarted, 'formats': yt-dlp format count, 'speed': x} or None."""
+    log=DATA/id/'job.log';start=LOGPOS.get(id,0)
+    with PROGLOCK:
+        try:size=log.stat().st_size
+        except OSError:return None
+        seen=LOGSEEN.get(id)
+        # A new step (or a log that was replaced) starts over; a first read looks at most 2 MB back.
+        if not seen or seen['start']!=start or size<seen['pos']:
+            seen=LOGSEEN[id]={'start':start,'pos':max(start,size-2000000),'carry':b'','time':None,'passes':0,'formats':None,'speed':None}
+        if size>seen['pos']:
+            try:
+                with open(log,'rb') as f:f.seek(seen['pos']);data=seen['carry']+f.read(size-seen['pos'])
+            except OSError:return None
+            seen['pos']=size
+            # Keep an unfinished last line for next time, so a progress line is never read in two halves.
+            cut=max(data.rfind(b'\r'),data.rfind(b'\n'))+1
+            seen['carry']=data[cut:][-4096:];text=data[:cut].decode('utf-8','replace')
+            for h,m,sec in FFMPEG_TIME.findall(text):
+                t=int(h)*3600+int(m)*60+float(sec)
+                if seen['time'] is not None and t<seen['time']-1:seen['passes']+=1
+                seen['time']=t
+            if seen['formats'] is None and (found:=FORMAT_COUNT.search(text)):seen['formats']=int(found.group(1))
+            if speed:=FFMPEG_SPEED.findall(text):seen['speed']=float(speed[-1])
+        return dict(seen)
+
 LASTPROG={}  # job id -> (log position, status, fraction): progress never moves backwards within a step
 def job_progress(row):
     """How far the running download or encode has got, from ffmpeg's own progress lines.
@@ -110,26 +140,21 @@ def job_progress(row):
     yt-dlp fetches video and audio as separate passes, each counting from zero, so passes are combined:
     the video (about 85% of the work) first, then the audio."""
     if row['status'] not in ('downloading','processing'):
-        LASTPROG.pop(row['id'],None);return None
+        LASTPROG.pop(row['id'],None)
+        with PROGLOCK:LOGSEEN.pop(row['id'],None)
+        return None
     try:settings=json.loads(row.get('detect_settings') or '{}')
     except ValueError:settings={}
     if row.get('clip_mode')=='dynamic' and (row['status']=='downloading' or str(row.get('detail','')).startswith('Preparing a review')):
         total=settings.get('anchor',row['start'])+settings.get('window',480)-(row.get('source_start') or 0)
     else:total=row['end']-row['start']
     result={'fraction':None,'eta':None}
-    log=DATA/row['id']/'job.log'
-    start=LOGPOS.get(row['id'],0)
-    try:
-        size=log.stat().st_size
-        with open(log,'rb') as f:
-            f.seek(max(start,size-2000000));text=f.read().decode('utf-8','replace')
-    except OSError:return result
-    times=[int(h)*3600+int(m)*60+float(sec) for h,m,sec in FFMPEG_TIME.findall(text)]
-    if not times or total<=0:return result
-    current=min(times[-1]/total,1)
-    formats=int(FORMAT_COUNT.search(text).group(1)) if row['status']=='downloading' and FORMAT_COUNT.search(text) else 1
+    seen=log_progress(row['id'])
+    if not seen or seen['time'] is None or total<=0:return result
+    current=min(seen['time']/total,1)
+    formats=seen['formats'] if row['status']=='downloading' and seen['formats'] else 1
     if formats>1:
-        passes=min(sum(1 for a,b in zip(times,times[1:]) if b<a-1),formats-1)
+        passes=min(seen['passes'],formats-1)
         rest=0.15/(formats-1)
         overall=(0.85+(passes-1)*rest if passes else 0)+(rest if passes else 0.85)*current
     else:overall=current
@@ -137,8 +162,7 @@ def job_progress(row):
     if previous and previous[0]==key:overall=max(overall,previous[1])
     LASTPROG[row['id']]=(key,overall)
     result['fraction']=round(min(overall,0.99),4)
-    speed=FFMPEG_SPEED.findall(text)
-    if speed and float(speed[-1])>0.05:result['eta']=round(max(total-times[-1],0)/float(speed[-1]))
+    if seen['speed'] and seen['speed']>0.05:result['eta']=round(max(total-seen['time'],0)/seen['speed'])
     return result
 
 _ENCODERS=None
@@ -335,6 +359,7 @@ def queue_loop(stop=None):
                     if len(BUSY)>=MAX_PARALLEL:break
                     if row['id'] in BUSY:continue
                     BUSY.add(row['id']);LASTPROG.pop(row['id'],None)
+                    with PROGLOCK:LOGSEEN.pop(row['id'],None)
                 threading.Thread(target=worker,args=(row['id'],),daemon=True).start();started=True
         if not started:time.sleep(.5)
 

@@ -24,9 +24,17 @@ final class LibraryStore {
     private var pollingTask: Task<Void, Never>?
     private var pollingUsers: Set<UUID> = []
     var activeCount: Int { clips.filter(\.isActive).count }
+    /// Bumped whenever the clip list changes, so views can rebuild derived rows without comparing every clip.
+    private(set) var clipsVersion = 0
+    @ObservationIgnored private var lastRefresh = Date.distantPast
+    /// Seconds between library polls: quick while something is downloading or the engine can't be reached,
+    /// slow when idle (actions refresh straight away, so nothing waits on the slow interval).
+    var pollInterval: TimeInterval { LibraryStore.pollInterval(active: activeCount > 0, failing: connectionError != nil) }
+    nonisolated static func pollInterval(active: Bool, failing: Bool) -> TimeInterval { active ? 2 : failing ? 2.5 : 15 }
 
     func refresh() async throws {
         guard let client else { return }
+        lastRefresh = Date()
         let library: LibraryState
         do { library = try await client.library() }
         catch is CancellationError { throw CancellationError() }
@@ -35,7 +43,7 @@ final class LibraryStore {
         capabilityError = library.ffmpeg ? nil : "FFmpeg isn’t installed. Install FFmpeg, then reopen the app to download matches."
         let old = Dictionary(uniqueKeysWithValues: clips.map { ($0.id, $0.status) })
         // Stable IDs preserve table selection and row identity while values update in place.
-        if clips != library.clips { clips = library.clips }; storage = library.storage; free = library.free
+        if clips != library.clips { clips = library.clips; clipsVersion &+= 1 }; storage = library.storage; free = library.free
         NSApplication.shared.dockTile.badgeLabel = activeCount == 0 ? nil : String(activeCount)
         if ready {
             for clip in clips where old[clip.id] != nil && old[clip.id] != clip.status && ["ready", "needs_review", "failed"].contains(clip.status) {
@@ -54,7 +62,10 @@ final class LibraryStore {
                     do { try await self.refresh() }
                     catch is CancellationError { return }
                     catch { /* refresh records connection failures separately from operation errors. */ }
-                    do { try await Task.sleep(for: .milliseconds(2500)) } catch { return }
+                    // Wait until the next poll is due. A refresh made elsewhere (after an action) restarts the
+                    // wait, and starting a download switches to the fast interval within half a second.
+                    repeat { do { try await Task.sleep(for: .milliseconds(500)) } catch { return } }
+                    while Date().timeIntervalSince(self.lastRefresh) < self.pollInterval
                 }
             }
         }
