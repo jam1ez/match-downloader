@@ -240,7 +240,7 @@ struct EventView: View {
             }
             Text("\(platform(row.url)) · \(Format.plural(row.count, "match", "matches")) with video").font(.callout).foregroundStyle(.secondary)
             HStack {
-                Button("Change…") {
+                Button("Change") {
                     livestream = RecordingEdit(draft: row.manual.map { StreamDraft(editing: $0) } ?? StreamDraft(label: "Livestream", date: row.day, divisionId: "*"))
                 }.inspectorButton()
                 if let manual = row.manual {
