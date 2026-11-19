@@ -316,12 +316,14 @@ public struct EventDetail: Codable, Sendable, Hashable, Identifiable {
     public var recordingDurations: [String: Double]?
     public var days: [String]?
     public var streamSummary: StreamSummary?
+    /// Seconds every found video position is shifted (negative is earlier). Positions set by hand are not shifted.
+    public var timingOffset: Double?
 
     public var id: String { sku }
 
     enum CodingKeys: String, CodingKey {
         case sku, name, divisions, matches, fetched, warning, cached, start, end, program, location
-        case sourceUrl, streams, streamChoices, discovery, autoTiming, recordingDurations, days, streamSummary
+        case sourceUrl, streams, streamChoices, discovery, autoTiming, recordingDurations, days, streamSummary, timingOffset
         case eventID = "id"
     }
 

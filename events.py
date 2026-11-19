@@ -5,7 +5,7 @@ from urllib.parse import urlencode, urlparse, parse_qs
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from worlds import timestamps as worlds_timestamps
-from event_streams import apply_streams, normalize_stream, video_url, event_days, timestamp as stream_timestamp
+from event_streams import apply_streams, normalize_stream, video_url, event_days, number, TIMING_OFFSET_LIMIT, timestamp as stream_timestamp
 
 HEADERS={'User-Agent':'Mozilla/5.0 (Match Downloader local match library)','Accept':'application/json','Origin':'https://openscout.ing','Referer':'https://openscout.ing/'}
 
@@ -143,7 +143,7 @@ class Events:
                 if previous.get('timing') in ('Manual calibration','Recording calibration'):
                     for k in ('timestamp','url','available','timing'):m[k]=previous[k]
                     m['_manualVideo']={k:previous[k] for k in ('timestamp','url','available','timing')}
-        data={'sku':sku,'name':(event or {}).get('name') or (preset or {}).get('name') or sku,'divisions':[{'id':id,'name':name} for id,name in sorted(({m['divisionId']:m['division'] for m in matches} or divs).items())],'matches':sorted(matches,key=match_order),'fetched':time.time(),'warning':warning, 'cached':False,'id':(event or {}).get('id'),'start':(event or {}).get('start') or (cached or {}).get('start'),'end':(event or {}).get('end') or (cached or {}).get('end'),'program':(event or {}).get('program'),'location':(event or {}).get('location'),'sourceUrl':'https://events.vex.com/robot-competitions/'+('vex-iq-competition/' if any(t in sku for t in ('VIQ','VE-IQ')) else 'vex-robotics-competition/')+sku+'.html','streams':(cached or {}).get('streams',[]),'streamChoices':(cached or {}).get('streamChoices',{}),'discovery':(cached or {}).get('discovery'),'autoTiming':(cached or {}).get('autoTiming'),'recordingDurations':(cached or {}).get('recordingDurations',{})}
+        data={'sku':sku,'name':(event or {}).get('name') or (preset or {}).get('name') or sku,'divisions':[{'id':id,'name':name} for id,name in sorted(({m['divisionId']:m['division'] for m in matches} or divs).items())],'matches':sorted(matches,key=match_order),'fetched':time.time(),'warning':warning, 'cached':False,'id':(event or {}).get('id'),'start':(event or {}).get('start') or (cached or {}).get('start'),'end':(event or {}).get('end') or (cached or {}).get('end'),'program':(event or {}).get('program'),'location':(event or {}).get('location'),'sourceUrl':'https://events.vex.com/robot-competitions/'+('vex-iq-competition/' if any(t in sku for t in ('VIQ','VE-IQ')) else 'vex-robotics-competition/')+sku+'.html','streams':(cached or {}).get('streams',[]),'streamChoices':(cached or {}).get('streamChoices',{}),'discovery':(cached or {}).get('discovery'),'autoTiming':(cached or {}).get('autoTiming'),'recordingDurations':(cached or {}).get('recordingDurations',{}),'timingOffset':(cached or {}).get('timingOffset',0)}
         apply_streams(data);self.write(sku,data);return data
     def calibrate(self,sku,key,url,timestamp):
         data=self.read(self.sku(sku))
@@ -216,6 +216,14 @@ class Events:
             if body.get('id') and not any(s['id']==body['id'] for s in streams):raise ValueError('Recording was not found')
             stream=normalize_stream(data,body)
             data['streams']=[s for s in streams if s['id']!=stream['id']]+[stream];data.pop('autoTiming',None)
+            apply_streams(data);self.write(data['sku'],data);return data
+    def set_timing_offset(self,sku,offset):
+        """Shifts every found video position in the event (seconds; negative is earlier). Positions set by hand stay."""
+        offset=round(number(offset,minimum=-TIMING_OFFSET_LIMIT,maximum=TIMING_OFFSET_LIMIT),1)
+        with self.lock:
+            data=self.read(self.sku(sku))
+            if not data:raise ValueError('Load the event first')
+            data['timingOffset']=offset
             apply_streams(data);self.write(data['sku'],data);return data
     def delete_stream(self,sku,id):
         with self.lock:

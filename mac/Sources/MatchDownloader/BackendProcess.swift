@@ -40,7 +40,7 @@ struct BackendConfiguration: Sendable {
 @MainActor
 final class BackendProcess {
     /// The engine version this app needs (`API_VERSION` in app.py).
-    static let engineAPI = 2
+    static let engineAPI = 3
     let configuration: BackendConfiguration
     private(set) var process: Process?
     private var log: FileHandle?

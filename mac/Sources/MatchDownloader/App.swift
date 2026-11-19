@@ -36,7 +36,7 @@ struct MatchDownloaderApp: App {
         WindowGroup("Match Downloader", id: "workspace") {
             Group {
                 if ready { WorkspaceView(library: store) }
-                else { ContentUnavailableView("Match Downloader", systemImage: "film", description: Text(message)) }
+                else { StartupMessage(message: message) }
             }.frame(minWidth: 700, minHeight: 440)
             .task(id: ready && scenePhase == .active) { if ready && scenePhase == .active { await store.poll() } }
             .safeAreaInset(edge: .bottom) { if let error = store.error { HStack { Text(error).textSelection(.enabled); Spacer(); Button("Dismiss") { store.error = nil } }.padding().background(.bar) } }
@@ -91,5 +91,38 @@ struct MatchDownloaderApp: App {
             .defaultSize(width: 960, height: 540).windowResizability(.contentMinSize)
         WindowGroup(for: Playback.self) { $item in if let item { PlaybackView(playback: item) } }
             .defaultSize(width: 1120, height: 630).windowResizability(.contentMinSize)
+    }
+}
+
+/// What the window shows until the library is ready. A message with a Terminal command
+/// ("… In Terminal: <command>") shows the command on its own, selectable, with a Copy button.
+struct StartupMessage: View {
+    let message: String
+    @State private var copied = false
+    private var parts: (text: String, command: String?) {
+        guard let range = message.range(of: " In Terminal: ") else { return (message, nil) }
+        return (String(message[..<range.lowerBound]), String(message[range.upperBound...]))
+    }
+    var body: some View {
+        ContentUnavailableView {
+            Label("Match Downloader", systemImage: "film")
+        } description: {
+            Text(parts.text).textSelection(.enabled)
+        } actions: {
+            if let command = parts.command {
+                VStack(spacing: 10) {
+                    Text("Paste this into Terminal:").font(.callout).foregroundStyle(.secondary)
+                    Text(command).font(.body.monospaced()).textSelection(.enabled)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(.quaternary, in: .rect(cornerRadius: 8))
+                    Button(copied ? "Copied" : "Copy Command", systemImage: copied ? "checkmark" : "doc.on.doc") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(command, forType: .string)
+                        copied = true
+                    }.keyboardShortcut("c", modifiers: [.command, .shift])
+                }
+            }
+        }
+        .onChange(of: message) { copied = false }
     }
 }

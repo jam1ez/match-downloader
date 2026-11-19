@@ -22,7 +22,7 @@ def resolve(event):
     code=(event.get('program') or {}).get('code','').upper()
     allowed={'V5RC HS':['VRC','V5RC'],'V5RC MS':['VRC','V5RC'],'VIQRC ES':['VIQC','VIQRC'],'VIQRC MS':['VIQC','VIQRC'],'VURC':['VEXU','VURC']}
     for program,cfg in CONFIG.get(year,{}).items():
-        if code not in allowed[program]:continue
+        if code not in allowed.get(program,[]):continue
         overlap=sum(any(d.lower() in v.get('name','').lower() for v in event.get('divisions',[])) for d in cfg['divisions'])
         if not overlap:continue
         grade={'V5RC HS':'high school','V5RC MS':'middle school','VIQRC ES':'elementary','VIQRC MS':'middle school'}.get(program,'')

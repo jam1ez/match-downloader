@@ -34,6 +34,22 @@ class StreamTests(unittest.TestCase):
             responses=[[],{'data':[{'id':65786,'sku':SKU,'name':'Upcoming event','start':'2026-11-14T00:00:00-08:00','end':'2026-11-15T00:00:00-08:00','divisions':[{'id':1,'name':'Main'}]}]},{'data':[],'meta':{'last_page':1}}]
             with patch('events.remote',side_effect=responses):d=e.load(SKU)
             self.assertEqual(d['matches'],[]);self.assertEqual(d['divisions'][0]['name'],'Main');self.assertEqual(len(d['days']),2)
+    def test_livestream_shift_moves_found_positions_but_not_ones_set_by_hand(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            e=Events(tmp);d=event()
+            d['matches'][0].update(timestamp=100,url='https://youtu.be/T3iBuIt4M-0',available=True,timing='Jumper')
+            d['matches'][1].update(timestamp=10,url='https://youtu.be/T3iBuIt4M-0',available=True,timing='Jumper')
+            d['matches'][2].update(timestamp=500,url='https://youtu.be/T3iBuIt4M-0',available=True,timing='Manual calibration')
+            apply_streams(d);e.write(SKU,d)
+            out=e.set_timing_offset(SKU,-30)
+            self.assertEqual([m['timestamp'] for m in out['matches'][:3]],[70,0,500])
+            self.assertEqual(out['timingOffset'],-30)
+            again=e.set_timing_offset(SKU,'12')  # replaces the shift, never adds to it
+            self.assertEqual([m['timestamp'] for m in again['matches'][:3]],[112,22,500])
+            self.assertEqual(e.load(SKU)['matches'][0]['timestamp'],112)
+            for bad in (601,-601,'soon',float('nan')):
+                with self.assertRaises(ValueError):e.set_timing_offset(SKU,bad)
+            self.assertEqual(e.set_timing_offset(SKU,0)['matches'][0]['timestamp'],100)
     def test_division_day_and_field_scope(self):
         d=event();d['streams']=[normalize_stream(d,stream(field='Field 1',offset=3))];apply_streams(d)
         self.assertEqual(d['matches'][0]['timestamp'],103);self.assertEqual(d['matches'][1]['timestamp'],403)

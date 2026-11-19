@@ -117,6 +117,14 @@ func fixture<T: Decodable>(_ name: String, as: T.Type = T.self) throws -> T {
     #expect(Labels.failure("ERROR: [youtube] abc: Video unavailable") == "abc: Video unavailable")
 }
 
+@Test func eventReadsLivestreamShiftWhenPresent() throws {
+    let base = #"{"sku":"RE-V5RC-26-4244","name":"E","divisions":[],"matches":[]"#
+    let shifted = try JSONDecoder().decode(EventDetail.self, from: Data((base + #","timingOffset":-12.5}"#).utf8))
+    #expect(shifted.timingOffset == -12.5)
+    let older = try JSONDecoder().decode(EventDetail.self, from: Data((base + "}").utf8))
+    #expect(older.timingOffset == nil)
+}
+
 @Test func playbackShortcutsClampAndStepSensibly() {
     #expect(PlaybackMath.seekTarget(current: 3, delta: -5, duration: 60) == 0)
     #expect(PlaybackMath.seekTarget(current: 58, delta: 5, duration: 60) == 60)

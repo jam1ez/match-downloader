@@ -95,6 +95,10 @@ public struct APIClient: Sendable {
     public func deleteStream(sku: String, id: String) async throws -> EventDetail {
         try await post("api/events/streams/delete", ["sku": sku, "id": id])
     }
+    /// Shifts every found video position in the event by `offset` seconds (negative is earlier).
+    public func setTimingOffset(sku: String, offset: Double) async throws -> EventDetail {
+        try await post("api/events/timing-offset", Body(["sku": .string(sku), "offset": .number(offset)]))
+    }
     public func chooseStream(sku: String, key: String, id: String) async throws -> EventDetail {
         try await post("api/events/streams/choose", ["sku": sku, "key": key, "id": id])
     }

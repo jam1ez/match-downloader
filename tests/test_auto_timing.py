@@ -1,3 +1,4 @@
+from unittest.mock import patch
 import copy,sys,tempfile,unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -67,3 +68,12 @@ class AutoTimingTests(unittest.TestCase):
         fed=next(m for m in result['matches'] if m['key']=='1:2');self.assertEqual(fed['timing'],'Jumper')
         late=next(m for m in result['matches'] if m['key']=='1:12');self.assertIn('otherother1',late['url']);self.assertEqual(late['timestamp'],10800)
 if __name__=='__main__':unittest.main()
+
+class ProbeLinkTests(unittest.TestCase):
+    def test_vimeo_event_video_is_probed_as_the_video_itself(self):
+        import auto_timing
+        seen=[]
+        with patch.object(auto_timing,'extract',side_effect=lambda url,flat=False:seen.append(url) or {'title':'Day 1'}):
+            auto_timing.probe('https://vimeo.com/event/5938928/video/1193358615')
+            auto_timing.probe('https://boxcast.tv/view/abc123')
+        self.assertEqual(seen,['https://vimeo.com/1193358615','https://boxcast.tv/view-embed/abc123'])

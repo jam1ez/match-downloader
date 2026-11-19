@@ -9,6 +9,22 @@ def video_url(value):
     if u.scheme not in ('http','https') or not u.hostname or u.username or u.password:raise ValueError('Enter an HTTP or HTTPS recording link')
     return value
 
+def media_url(url):
+    """The link yt-dlp should read for a recording.
+    OpenScout emits BoxCast /view/<id>; yt-dlp's extractor expects /view-embed/<id>.
+    A Vimeo event link is /event/<event id>/video/<video id>: the video id names the recording, while the
+    event id belongs to a different Vimeo page, so point at the video itself."""
+    u=urlparse(url)
+    if u.hostname in ('boxcast.tv','www.boxcast.tv'):
+        match=re.fullmatch(r'/(?:view|embed)/([^/]+)',u.path.rstrip('/'))
+        if match:return 'https://boxcast.tv/view-embed/'+match.group(1)
+    if u.hostname in ('vimeo.com','www.vimeo.com'):
+        match=re.fullmatch(r'/event/\d+/video/(\d+)(?:/([0-9a-f]+))?',u.path.rstrip('/'))
+        if match:return 'https://vimeo.com/'+match.group(1)+('/'+match.group(2) if match.group(2) else '')
+    return url
+
+TIMING_OFFSET_LIMIT=600  # seconds the whole event's video positions can be shifted either way
+
 def number(value,default=0,minimum=0,maximum=604800):
     if value is None or value=='':return default
     try:n=float(value)
@@ -177,6 +193,12 @@ def apply_streams(event):
             elif options:ambiguous-=1
             elif m.get('estimatedFrom'):estimated-=1
             m.update(m['_manualVideo']);m.pop('streamId',None);m.pop('streamLabel',None);m.pop('estimatedFrom',None)
+    # The event-wide livestream shift moves every found position; positions you set yourself stay put.
+    shift=event.get('timingOffset') or 0
+    if shift:
+        for m in event.get('matches',[]):
+            if m.get('_manualVideo') or not m.get('available') or not isinstance(m.get('timestamp'),(int,float)):continue
+            m['timestamp']=max(0,m['timestamp']+shift)
     event['days']=event_days(event)
     event['streamSummary']={'recordings':len(event.get('streams',[])),'mapped':mapped,'ambiguous':ambiguous,'estimated':estimated}
     return event
