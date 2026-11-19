@@ -208,6 +208,13 @@ Before long polish/review: inspect source with apple-design references; improve 
 - Cause: preview.js took the first number in the path as the Vimeo video id. For vimeo.com/event/<event id>/video/<video id> that is the event id (5938928), which is a different public video ("Camel Strips", 1:47), hence "match time is beyond the end of this recording". Fixed in preview.js (id after /video/), the engine (`boxcast()` rewrites event video links to vimeo.com/<id> before yt-dlp, which had also resolved the wrong video), and the Swift Open in Browser link (vimeo.com/<id>#t=Ns). Tests added (node, Python).
 - The real video is login/embed-restricted on Vimeo, so preview now reports it as unavailable and offers Open in Browser; not verified that Vimeo seeks to the match time.
 
+## Livestream shift and full test pass (2026-11-18)
+- Event panel > Livestream: "Shift All Matches" slider (±5 min, 1 s steps, stepper for ±1 s, Reset). Saved on release to the engine (`POST /api/events/timing-offset {sku, offset}`, ±600 s), stored as `timingOffset` in the event and kept across refreshes. Every found position moves (feed, estimates, your recordings, auto timing); positions set with Set Video Position… or recording calibration stay. Engine API is now 3. Tests added (Python, Swift). Verified against a library copy over HTTP; not verified by dragging the slider (no screen capture here).
+- Fix: recording probes (Read Details, recording-length checks) read Vimeo event links as the event id's video, the same wrong-video bug fixed for preview and download. The link rewrite now lives in `event_streams.media_url` and both the engine and probes use it. Test added.
+- Fix: `worlds.resolve` no longer raises KeyError for a program missing from its allowed-codes table.
+- Full pass: 84 Python, 4 Node, 14 Swift tests pass; clean Swift build has no warnings; web pages (/, /next/, /classic/) load with no console errors.
+- Seen, not fixed: AppKit logs "reentrant operation in its NSTableView delegate" on launch (will become an assert in a future macOS); tests leave one unclosed SQLite connection (ResourceWarning).
+
 ## Progress bar fill drawn lower than its track (2026-11-18)
 - Screenshot showed the blue fill below the grey track in the inspector. The fill was a scaled capsule in an overlay with a 2.5 s implicit animation, which also animated layout shifts. Replaced with `BarFill`, a shape drawn in the same rectangle as the track, with no animation of its own (it steps as the engine reports). Not verified by looking.
 

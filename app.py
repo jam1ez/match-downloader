@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 from events import Events, match_format
 from boundaries import analyze
 from worlds import season as worlds_season
+from event_streams import media_url
 
 ROOT = Path(__file__).resolve().parent
 # MATCH_DOWNLOADER_DATA moves the library; SCOUTVAULT_DATA (the app's former name) still works.
@@ -17,7 +18,7 @@ EVENTS = Events(DATA)
 # The native app reads this token from <library>/.session-token; MATCH_DOWNLOADER_TOKEN overrides it.
 TOKEN = os.environ.get('MATCH_DOWNLOADER_TOKEN') or secrets.token_hex(24)
 TOKEN_FILE = DATA / '.session-token'
-API_VERSION = 2  # bump when the Mac app needs a newer engine (2: archive/remove events, quit-when-idle)
+API_VERSION = 3  # bump when the Mac app needs a newer engine (2: archive/remove events, quit-when-idle; 3: livestream shift)
 
 def write_token_file():
     TOKEN_FILE.unlink(missing_ok=True)
@@ -73,19 +74,7 @@ def source_url(value):
         raise ValueError('Enter an HTTP or HTTPS recording URL')
     return value
 
-def boxcast(url):
-    # OpenScout emits /view/<broadcast-id>; yt-dlp's native extractor expects
-    # /view-embed/<id>. Preserve provider-supported channel/video-portal URLs.
-    u=urlparse(url)
-    if u.hostname in ('boxcast.tv','www.boxcast.tv'):
-        match=re.fullmatch(r'/(?:view|embed)/([^/]+)',u.path.rstrip('/'))
-        if match: return 'https://boxcast.tv/view-embed/'+match.group(1)
-    # A Vimeo event link is /event/<event id>/video/<video id>. The video id is the one that names the recording;
-    # the event id belongs to a different Vimeo page, so point at the video itself.
-    if u.hostname in ('vimeo.com','www.vimeo.com'):
-        match=re.fullmatch(r'/event/\d+/video/(\d+)(?:/([0-9a-f]+))?',u.path.rstrip('/'))
-        if match: return 'https://vimeo.com/'+match.group(1)+('/'+match.group(2) if match.group(2) else '')
-    return url
+boxcast = media_url  # the link yt-dlp reads (BoxCast embeds, Vimeo event videos); shared with recording probes
 
 LOGPOS={}  # where the running command's output starts in job.log, so progress never reads an earlier step
 def run(id, args):
@@ -432,6 +421,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.json({'error':'The recording could not be prepared for preview. Check that it is publicly accessible.'},400)
             if path=='/api/events/auto-time':
                 return self.json(EVENTS.auto_time(body.get('sku',''),body.get('search',True) is not False))
+            if path=='/api/events/timing-offset':
+                return self.json(EVENTS.set_timing_offset(body.get('sku',''),body.get('offset',0)))
             if path=='/api/events/streams/save':
                 return self.json(EVENTS.save_stream(body.get('sku',''),body.get('stream') or {}))
             if path=='/api/events/streams/delete':

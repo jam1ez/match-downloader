@@ -4,7 +4,7 @@ from datetime import datetime,timezone
 from pathlib import Path
 from urllib.parse import urlparse,parse_qs
 from concurrent.futures import ThreadPoolExecutor
-from event_streams import video_url,timestamp,match_time,normalize_stream,apply_streams,recording_key
+from event_streams import video_url,timestamp,match_time,normalize_stream,apply_streams,recording_key,media_url
 
 def canonical(url):
     u=urlparse(url);host=(u.hostname or '').removeprefix('www.')
@@ -48,11 +48,9 @@ def probe(url,cache_dir=None):
             ttl=300 if data.get('liveStatus') in ('is_live','is_upcoming','post_live') else 86400
             if time.time()-data.get('checked',0)<ttl:return data
         except (ValueError,OSError):pass
-    query=url
-    # OpenScout's BoxCast links use /view; the extractor accepts /view-embed.
-    u=urlparse(query)
-    if u.hostname in ('boxcast.tv','www.boxcast.tv'):query=query.replace('/view/','/view-embed/')
-    data=metadata(extract(query,flat=True))
+    # BoxCast /view links and Vimeo event videos are read through the link yt-dlp understands, so a
+    # Vimeo event never reports another video's title and length.
+    data=metadata(extract(media_url(url),flat=True))
     if file:
         file.parent.mkdir(exist_ok=True,parents=True)
         # Each cache key can be probed concurrently without a shared temp name.
