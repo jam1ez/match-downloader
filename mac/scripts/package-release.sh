@@ -14,7 +14,6 @@ OUT="$ROOT/dist/Match-Downloader-$VERSION.zip"
 # Everything committed, so the zip matches the tag.
 mkdir -p "$STAGE/$NAME"
 git -C "$ROOT" archive HEAD | tar -x -C "$STAGE/$NAME"
-rm -rf "$STAGE/$NAME/$NAME.app"
 # The app, built for Apple silicon and Intel, with this version in About.
 MATCH_DOWNLOADER_VERSION="$VERSION" UNIVERSAL=1 "$ROOT/mac/scripts/build-app.sh" "$STAGE/$NAME/$NAME.app"
 chmod +x "$STAGE/$NAME/Setup.command" "$STAGE/$NAME/Start.command"
