@@ -68,7 +68,7 @@ State each in the report; do not blur them.
 - **Not verified live**: real YouTube/Vimeo/BoxCast behaviour that tests fake out.
 
 A fix is done when: the repro now passes, the relevant checks in section 2 pass, no new warnings, and the
-progress log `redesign/swiftui/PROGRESS.md` has a short entry (cause, fix, what was and wasn't verified).
+progress log [PROGRESS.md](PROGRESS.md) has a short entry (cause, fix, what was and wasn't verified).
 
 ## 5. When stuck
 
@@ -147,5 +147,5 @@ sentinel file bytes, not playable video. Preserve these distinctions when workin
 
 DBG-001 through DBG-004 have fixes and regression coverage. Both native hypotheses were reproduced
 with controlled responses before applying their fixes. See the 2026-11-19 audit-fixes entry in
-`redesign/swiftui/PROGRESS.md` for implementation and verification details. The original observations
+[PROGRESS.md](PROGRESS.md) for implementation and verification details. The original observations
 above describe the pre-fix tree and remain here as reproduction history. No visual checks were run.

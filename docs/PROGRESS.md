@@ -1,6 +1,6 @@
 # Progress log: native SwiftUI Match Downloader
 
-> Historical record of the SwiftUI rewrite. Files it mentions that no longer exist (`PROMPT.md`, `REVIEW.md`, `redesign/mac/`, the screenshots, `tools/Desktop.swift`, and the `/next` and `/classic` web pages) were removed in a later cleanup and remain in git history.
+> Log of the SwiftUI rewrite and later fixes; add an entry per fix (see [DEBUGGING.md](DEBUGGING.md)). It was `redesign/swiftui/PROGRESS.md`. Files the early entries mention that no longer exist (`PLAN.md`, `PROMPT.md`, `REVIEW.md`, `redesign/mac/`, the screenshots, `tools/Desktop.swift`, and the `/next` and `/classic` web pages) were removed in cleanups and remain in git history.
 
 Last updated: 2026-11-18, after native Phases 0–4 implementation and nonvisual verification. **Nothing has been committed.** Read the continuation and final checkpoint below for current state. The initial handoff below is retained as history.
 

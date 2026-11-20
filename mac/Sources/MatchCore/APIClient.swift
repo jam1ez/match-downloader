@@ -32,7 +32,7 @@ public enum SessionToken {
     }
 }
 
-/// One async function per engine endpoint (redesign/swiftui/PLAN.md > API surface).
+/// One async function per engine endpoint (the routes in server.py).
 public struct APIClient: Sendable {
     public typealias TokenProvider = @Sendable (_ refresh: Bool) async throws -> String
 
