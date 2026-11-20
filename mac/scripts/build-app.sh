@@ -11,11 +11,16 @@ trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "${TMPDIR:-/tmp}/match-downloader-swift-cache"
 export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-${TMPDIR:-/tmp}/match-downloader-swift-cache}"
 export SWIFTPM_MODULECACHE_OVERRIDE="$CLANG_MODULE_CACHE_PATH"
-swift build --package-path "$ROOT/mac" --disable-sandbox --cache-path "$CLANG_MODULE_CACHE_PATH/spm" -c release
-BIN="$(swift build --package-path "$ROOT/mac" --disable-sandbox --cache-path "$CLANG_MODULE_CACHE_PATH/spm" -c release --show-bin-path)"
+# MATCH_DOWNLOADER_VERSION sets the version shown in About; UNIVERSAL=1 builds for Apple silicon and Intel.
+VERSION="${MATCH_DOWNLOADER_VERSION:-1.0}"
+BUILD="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+ARCH_FLAGS=()
+if [[ "${UNIVERSAL:-0}" == 1 ]]; then ARCH_FLAGS=(--arch arm64 --arch x86_64); fi
+swift build --package-path "$ROOT/mac" --disable-sandbox --cache-path "$CLANG_MODULE_CACHE_PATH/spm" -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+BIN="$(swift build --package-path "$ROOT/mac" --disable-sandbox --cache-path "$CLANG_MODULE_CACHE_PATH/spm" -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 cp "$BIN/MatchDownloader" "$BUNDLE/Contents/MacOS/Match Downloader"
-cat > "$BUNDLE/Contents/Info.plist" <<'PLIST'
+cat > "$BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -26,8 +31,8 @@ cat > "$BUNDLE/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleIconName</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.0</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>$VERSION</string>
+<key>CFBundleVersion</key><string>$BUILD</string>
 <key>LSMinimumSystemVersion</key><string>26.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
