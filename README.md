@@ -2,11 +2,16 @@
 
 A Mac app for saving VEX match videos to watch offline. Pick an event, pick the matches, and it downloads just those moments from the event's recording as MP4 files.
 
+## Install
+
+1. Download `Match-Downloader-<version>.zip` from the latest release and unzip it. Move the **Match Downloader** folder wherever you like (for example Applications or Documents) and keep everything in it together.
+2. Install [Python 3.10+](https://www.python.org/downloads/macos/) and, with [Homebrew](https://brew.sh), FFmpeg: `brew install ffmpeg`. For YouTube recordings also run `brew install node`.
+3. Double-click **Setup.command** once. It isn't notarized, so macOS blocks it the first time: open System Settings → Privacy & Security, click **Open Anyway** next to Setup.command, and confirm. It creates the Python environment and tells you if anything is missing.
+
 ## Run it
 
-1. Double-click **Match Downloader.app** (keep it next to `app.py` and `.venv`).
-2. First time on a new Mac: install Python 3.10+ and FFmpeg, then run `Start.command` once to set up the Python environment.
-3. Quit with Command-Q. Closing the window leaves the app running. Downloads in progress keep going after you quit, and the engine closes itself when they finish.
+1. Double-click **Match Downloader.app** (keep it next to `app.py` and `.venv`). The first time, macOS may ask again; use **Open Anyway** as above.
+2. Quit with Command-Q. Closing the window leaves the app running. Downloads in progress keep going after you quit, and the engine closes itself when they finish.
 
 Needs macOS 26. Logs are in `library/desktop.log`. On Windows run `Start.bat`; on Linux run `python3 -m venv .venv`, `.venv/bin/pip install -r requirements.txt`, then `.venv/bin/python app.py` and open http://127.0.0.1:8766.
 
@@ -52,6 +57,8 @@ It looks up the events, copies last year's channels, writes both files, and tell
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer mac/scripts/build-app.sh
 python3 -m unittest discover -s tests -v
 ```
+
+To make a release zip (a universal app plus the engine, from the committed tree): `mac/scripts/package-release.sh 1.0.0`. It writes `dist/Match-Downloader-1.0.0.zip`.
 
 The app source is in `mac/` (Xcode 26, Swift 6). Test against a copy of the library on another port with `--data` and `--port`, never two engines on one library. Settings → Advanced → Open Web Version in Browser opens the same library in a browser. To track down a bug, follow [docs/DEBUGGING.md](docs/DEBUGGING.md); fixes are logged in [docs/PROGRESS.md](docs/PROGRESS.md).
 
