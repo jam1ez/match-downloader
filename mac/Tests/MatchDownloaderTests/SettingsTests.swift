@@ -42,3 +42,15 @@ import Testing
         #expect(LibraryStore.pollInterval(active: false, failing: false) == 15)
     }
 }
+
+@Suite struct LibraryPathTests {
+    @Test func privateTmpMatchesShortenedPath() throws {
+        let folder = URL(fileURLWithPath: "/private/tmp/match-downloader-path-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        // The engine reports the resolved /private path; the app's own URL may be the shortened /tmp form.
+        #expect(BackendConfiguration.sameFolder(folder.path, folder.standardizedFileURL))
+        #expect(BackendConfiguration.sameFolder(folder.path, URL(fileURLWithPath: "/tmp/" + folder.lastPathComponent)))
+        #expect(!BackendConfiguration.sameFolder(folder.path, folder.appendingPathComponent("other")))
+    }
+}

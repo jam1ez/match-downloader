@@ -25,6 +25,11 @@ struct BackendConfiguration: Sendable {
         port = Int(argument("--port") ?? environment["MATCH_DOWNLOADER_PORT"] ?? "8766") ?? 8766
         guard (1...65535).contains(port) else { throw APIError.badResponse("Use a port between 1 and 65535.") }
     }
+    /// Whether the engine's library path is this folder. Symlinks and the /private prefix are resolved on
+    /// both sides: the engine reports /private/tmp/… where Foundation shortens the same folder to /tmp/….
+    static func sameFolder(_ storage: String, _ data: URL) -> Bool {
+        URL(fileURLWithPath: storage).resolvingSymlinksInPath().path == data.resolvingSymlinksInPath().path
+    }
     var client: APIClient {
         let directory = data
         return APIClient(baseURL: URL(string: "http://127.0.0.1:\(port)")!) { _ in
@@ -51,7 +56,7 @@ final class BackendProcess {
             try validate(health)
             // Confirm the configured library is the one served on this port before any writes.
             let library = try await configuration.client.library()
-            guard URL(fileURLWithPath: library.storage).standardizedFileURL == configuration.data else {
+            guard BackendConfiguration.sameFolder(library.storage, configuration.data) else {
                 throw APIError.badResponse("This port belongs to another library. Choose a different port or reopen the app with that library.")
             }
             guard SessionToken.read(dataDirectory: configuration.data) != nil else {
@@ -87,7 +92,7 @@ final class BackendProcess {
                 if let health = try? await configuration.client.health() {
                     try validate(health)
                     let library = try await configuration.client.library()
-                    guard URL(fileURLWithPath: library.storage).standardizedFileURL == configuration.data else {
+                    guard BackendConfiguration.sameFolder(library.storage, configuration.data) else {
                         throw APIError.badResponse("Another library is using this port.")
                     }
                     if SessionToken.read(dataDirectory: configuration.data) != nil { return }
